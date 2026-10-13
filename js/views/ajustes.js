@@ -1,0 +1,65 @@
+/* ============================================================
+   ajustes.js · Perfil, Google Drive y respaldo
+   El respaldo .json es el seguro independiente de Drive: contiene
+   todos tus datos y se puede restaurar en otro dispositivo.
+   ============================================================ */
+import * as db from '../db.js';
+import {driveConnect, driveConnected} from '../drive.js';
+import {esc, toast, download} from '../ui.js';
+
+export async function render(root) {
+  const [profile] = await db.live('profile');
+  const clientId = (await db.metaGet('gClientId')) || '';
+  const p = profile || {};
+
+  root.innerHTML = `
+    <h2>Ajustes</h2>
+    <div class="card"><h3>Perfil e institución</h3>
+      <label for="p-n">Nombre del docente</label><input id="p-n" value="${esc(p.teacherName || '')}">
+      <label for="p-i">Institución</label><input id="p-i" value="${esc(p.institution?.name || '')}">
+      <label for="p-y">Año lectivo</label><input id="p-y" value="${esc(p.academicYear || String(new Date().getFullYear()))}">
+      <div class="btns"><button class="primary" id="p-save">Guardar perfil</button></div></div>
+
+    <div class="card" style="margin-top:14px"><h3>Google Drive</h3>
+      <p class="hint">Tus archivos se guardan en <b>tu</b> Drive, en la carpeta «Organizador Pedagógico». La app solo ve lo que ella misma sube.
+        Necesitas un <i>Client ID</i> de OAuth (tipo «Aplicación web») creado en Google Cloud Console, con esta dirección como origen autorizado: <code>${esc(location.origin)}</code></p>
+      <label for="g-id">Client ID de Google</label><input id="g-id" value="${esc(clientId)}" placeholder="xxxx.apps.googleusercontent.com">
+      <div class="btns"><button id="g-save">Guardar ID</button>
+        <button class="primary" id="g-conn">${driveConnected() ? '✓ Conectado' : 'Conectar con Drive'}</button></div></div>
+
+    <div class="card" style="margin-top:14px"><h3>Respaldo</h3>
+      <p class="hint">Descarga una copia completa de tus datos o restaura una anterior. Al restaurar se conserva el registro más reciente de cada elemento.</p>
+      <div class="btns"><button id="b-exp">Descargar respaldo</button>
+        <button id="b-imp">Restaurar respaldo…</button></div>
+      <input type="file" id="b-file" accept="application/json,.json" hidden></div>`;
+
+  const $ = s => root.querySelector(s);
+
+  $('#p-save').onclick = async () => {
+    const data = {teacherName: $('#p-n').value.trim(), academicYear: $('#p-y').value.trim(),
+      institution: {...(p.institution || {}), name: $('#p-i').value.trim()}};
+    profile ? await db.update('profile', profile, data) : await db.create('profile', data);
+    toast('Perfil guardado');
+  };
+  $('#g-save').onclick = async () => { await db.metaSet('gClientId', $('#g-id').value.trim()); toast('Client ID guardado'); };
+  $('#g-conn').onclick = async () => {
+    try {
+      await db.metaSet('gClientId', $('#g-id').value.trim());
+      await driveConnect();
+      $('#g-conn').textContent = '✓ Conectado'; toast('Drive conectado');
+    } catch (e) { toast(e.message, 5000); }
+  };
+  $('#b-exp').onclick = async () => {
+    const data = await db.exportAll();
+    download(`organizador-respaldo-${new Date().toLocaleDateString('en-CA')}.json`,
+      new Blob([JSON.stringify(data)], {type: 'application/json'}));
+  };
+  $('#b-imp').onclick = () => $('#b-file').click();
+  $('#b-file').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const r = await db.importAll(JSON.parse(await f.text()));
+      toast(`Restaurado: ${r.added} nuevos, ${r.replaced} actualizados`, 4000);
+    } catch (err) { toast(err.message, 5000); }
+  };
+}

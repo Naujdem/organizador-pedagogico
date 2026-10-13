@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Organizador Pedagógico</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f6f4a">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="top">
+  <h1><span class="logo" aria-hidden="true"></span>Organizador Pedagógico</h1>
+  <span id="net" class="net" role="status" aria-live="polite" title="Estado de conexión">●</span>
+</header>
+
+<div class="shell">
+  <nav id="nav" class="nav" aria-label="Secciones">
+    <a href="#/inicio"      data-r="inicio"><i>🏠</i><span>Inicio</span></a>
+    <a href="#/banco"       data-r="banco"><i>🗂️</i><span>Recursos</span></a>
+    <a href="#/planeacion"  data-r="planeacion"><i>📅</i><span>Planeación</span></a>
+    <a href="#/guias"       data-r="guias"><i>📄</i><span>Guías</span></a>
+    <a href="#/lab"         data-r="lab"><i>🧪</i><span>Lab</span></a>
+    <a href="#/notas"       data-r="notas"><i>📷</i><span>Notas</span></a>
+    <a href="#/estructura"  data-r="estructura"><i>🧭</i><span>Estructura</span></a>
+    <a href="#/ajustes"     data-r="ajustes"><i>⚙️</i><span>Ajustes</span></a>
+  </nav>
+  <main id="view" tabindex="-1"></main>
+</div>
+
+<button id="fab" class="fab" hidden aria-label="Nuevo">＋</button>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

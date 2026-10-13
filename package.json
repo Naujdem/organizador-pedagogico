@@ -1,0 +1,15 @@
+{
+  "name": "organizador-pedagogico",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PWA offline-first para docentes de ciencias (Módulo 1: Planeación y Recursos)",
+  "scripts": {
+    "start": "npx serve . -l 5173",
+    "test": "node tests/data.test.mjs && node tests/ui.test.mjs"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.0.0",
+    "jsdom": "^26.0.0"
+  }
+}
