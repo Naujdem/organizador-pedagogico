@@ -89,4 +89,24 @@ r = await syncWith(cloud, 'user-B');
 assert.ok(r.pushed >= 10, 'otra cuenta recibe una copia completa');
 assert.ok([...cloud.rows.values()].every(x => x.store !== 'students'), 'estudiantes nunca viajan');
 
+
+/* 7) Duplicados: otro dispositivo sembró sus propios «7°» y «Química» con IDs distintos */
+const g7 = (await db.live('grades')).find(x => x.name === '7°');
+const q = (await db.live('subjects')).find(x => x.name === 'Química');
+const dupG = {id: '01DUPLICATEGRADE000000000', name: '7°', level: 'basica', order: 2, createdAt: Date.now() + 10, updatedAt: Date.now() + 10, deviceId: 'otro'};
+const dupS = {id: '01DUPLICATESUBJECT0000000', name: 'Quimica', color: '#fff', createdAt: Date.now() + 10, updatedAt: Date.now() + 10, deviceId: 'otro'};
+const res = {id: '01RESOURCEDEOTRO0000000000', title: 'Del otro', type: 'taller', subjectId: dupS.id, gradeIds: [dupG.id, g7.id], topicIds: [], tags: [], createdAt: 1, updatedAt: Date.now() + 20, deviceId: 'otro'};
+let n = 0;
+for (const [store, rec] of [['grades', dupG], ['subjects', dupS], ['resources', res]])
+  cloud.rows.set(`user-A|${store}|${rec.id}`, {user_id: 'user-A', store, id: rec.id, data: rec, updated_at: rec.updatedAt, deleted_at: null, server_updated_at: new Date((9.5e9) + (n++) * 1000).toISOString()});
+await syncWith(cloud, 'user-A');
+assert.equal((await db.live('grades')).filter(x => x.name === '7°').length, 1, 'un solo 7°');
+assert.equal((await db.live('subjects')).filter(x => /^quimica$/i.test(x.name.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))).length, 1, 'una sola Química');
+const fixed = await db.get('resources', res.id);
+assert.equal(fixed.subjectId, q.id, 'el recurso apunta a la materia que se conserva');
+assert.deepEqual(fixed.gradeIds, [g7.id], 'gradeIds sin repetidos');
+assert.ok((await db.get('grades', dupG.id)).deletedAt, 'el repetido queda como borrado');
+await syncWith(cloud, 'user-A');
+assert.equal([...cloud.rows.values()].find(x => x.id === dupG.id).deleted_at > 0, true, 'el borrado del repetido viaja a la nube');
+
 console.log('SYNC OK');

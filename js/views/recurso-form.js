@@ -5,9 +5,11 @@
    openResourceForm({resource?, defaults?, onSaved?})
    ============================================================ */
 import * as db from '../db.js';
-import {RESOURCE_TYPES, unitsFor, topicsFor} from '../store.js';
+import {RESOURCE_TYPES, unitsFor, topicsFor, norm} from '../store.js';
 import {driveConnected, driveUpload} from '../drive.js';
 import {esc, options, modal, toast} from '../ui.js';
+
+const NEW = '__new';   // valor de «＋ Otra materia / unidad…»
 
 export async function openResourceForm({resource, defaults = {}, onSaved} = {}) {
   const [grades, subjects, allRes] = await Promise.all([db.live('grades'), db.live('subjects'), db.live('resources')]);
@@ -32,8 +34,14 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
     <select id="f-type">${RESOURCE_TYPES.map(t =>
       `<option value="${t.id}"${(r.type || defaults.type || 'taller') === t.id ? ' selected' : ''}>${t.icon} ${t.label}</option>`).join('')}</select>
 
+    <div id="type-other" hidden>
+      <label for="f-typelabel">¿Qué tipo de recurso es?</label>
+      <input id="f-typelabel" value="${esc(r.typeLabel || '')}" placeholder="Ej. Mapa conceptual, Rúbrica, Lectura">
+    </div>
+
     <label for="f-subject">Materia</label>
-    <select id="f-subject">${options(subjects, st.subjectId, '— Sin materia —')}</select>
+    <select id="f-subject">${options(subjects, st.subjectId, '— Sin materia —')}<option value="${NEW}"${st.subjectId === NEW ? ' selected' : ''}>＋ Otra materia…</option></select>
+    <div id="new-subject" hidden><input id="f-newsubject" placeholder="Nombre de la nueva materia" aria-label="Nombre de la nueva materia"></div>
 
     <label>Grados</label>
     <div class="grades" id="f-grades">${grades.map(g =>
@@ -41,6 +49,8 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
 
     <label for="f-unit">Unidad</label>
     <select id="f-unit"></select>
+    <div id="new-unit" hidden><input id="f-newunit" placeholder="Nombre de la nueva unidad" aria-label="Nombre de la nueva unidad">
+      <p class="hint">Se crea para la materia elegida, en el primer grado marcado.</p></div>
 
     <label>Temas</label>
     <div id="f-topics" class="grades"></div>
@@ -84,10 +94,12 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
 
   /* ---- Cascada Unidad → Temas ---- */
   async function fillUnits() {
-    const units = (await unitsFor({subjectId: st.subjectId || undefined}))
+    const units = st.subjectId === NEW ? [] : (await unitsFor({subjectId: st.subjectId || undefined}))
       .filter(u => !st.gradeIds.size || st.gradeIds.has(u.gradeId));
-    if (st.unitId && !units.some(u => u.id === st.unitId)) { st.unitId = ''; st.topicIds.clear(); }
-    $('#f-unit').innerHTML = options(units.map(u => ({id: u.id, name: u.title})), st.unitId, '— Sin unidad —');
+    if (st.unitId && st.unitId !== NEW && !units.some(u => u.id === st.unitId)) { st.unitId = ''; st.topicIds.clear(); }
+    $('#f-unit').innerHTML = options(units.map(u => ({id: u.id, name: u.title})), st.unitId, '— Sin unidad —') +
+      `<option value="${NEW}"${st.unitId === NEW ? ' selected' : ''}>＋ Otra unidad…</option>`;
+    $('#new-unit').hidden = st.unitId !== NEW;
     await fillTopics();
   }
   async function fillTopics() {
@@ -97,18 +109,33 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
       ? topics.map(t => `<label class="chk"><input type="checkbox" value="${t.id}"${st.topicIds.has(t.id) ? ' checked' : ''}> ${esc(t.title)}</label>`).join('')
       : '<span class="hint">Elige una unidad con temas (créalos en Estructura).</span>';
   }
-  function togglePada() { $('#pada-box').hidden = $('#f-type').value !== 'pada'; }
+  function togglePada() {
+    const v = $('#f-type').value;
+    $('#pada-box').hidden = v !== 'pada';
+    $('#type-other').hidden = v !== 'otro';
+    if (v === 'otro' && dlg.open) $('#f-typelabel').focus();
+  }
   function toggleSrc() {
     const v = dlg.querySelector('input[name=src]:checked').value;
     $('#src-link').hidden = v !== 'link'; $('#src-file').hidden = v !== 'local';
   }
 
-  $('#f-subject').onchange = e => { st.subjectId = e.target.value; fillUnits(); };
+  $('#f-subject').onchange = e => {
+    st.subjectId = e.target.value;
+    $('#new-subject').hidden = st.subjectId !== NEW;
+    if (st.subjectId === NEW) $('#f-newsubject').focus();
+    fillUnits();
+  };
   $('#f-grades').onchange = e => {
     e.target.checked ? st.gradeIds.add(e.target.value) : st.gradeIds.delete(e.target.value);
     fillUnits();
   };
-  $('#f-unit').onchange = e => { st.unitId = e.target.value; st.topicIds.clear(); fillTopics(); };
+  $('#f-unit').onchange = e => {
+    st.unitId = e.target.value; st.topicIds.clear();
+    $('#new-unit').hidden = st.unitId !== NEW;
+    if (st.unitId === NEW) $('#f-newunit').focus();
+    fillTopics();
+  };
   $('#f-topics').onchange = e => { e.target.checked ? st.topicIds.add(e.target.value) : st.topicIds.delete(e.target.value); };
   $('#f-type').onchange = togglePada;
   dlg.querySelectorAll('input[name=src]').forEach(i => i.onchange = toggleSrc);
@@ -119,9 +146,30 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
     e.preventDefault();
     const title = $('#f-title').value.trim();
     if (!title) return toast('Escribe un título.');
+    const newSubject = st.subjectId === NEW ? $('#f-newsubject').value.trim() : '';
+    const newUnit = st.unitId === NEW ? $('#f-newunit').value.trim() : '';
+    if (st.subjectId === NEW && !newSubject) return toast('Escribe el nombre de la nueva materia.');
+    if (st.unitId === NEW) {
+      if (!newUnit) return toast('Escribe el nombre de la nueva unidad.');
+      if (!st.subjectId) return toast('Elige la materia de la nueva unidad.');
+      if (!st.gradeIds.size) return toast('Marca al menos un grado para crear la unidad.');
+    }
     const btn = $('#f-save'); btn.disabled = true; btn.textContent = 'Guardando…';
     try {
       const type = $('#f-type').value;
+      /* Materia y unidad nuevas: se crean al guardar (si ya existe una con ese nombre, se reutiliza) */
+      let subjectId = st.subjectId === NEW ? '' : $('#f-subject').value;
+      if (st.subjectId === NEW) {
+        const same = subjects.find(x => norm(x.name) === norm(newSubject));
+        subjectId = same ? same.id : (await db.create('subjects', {name: newSubject, color: '#0ea5e9'})).id;
+      }
+      let unitId = st.unitId === NEW ? '' : st.unitId;
+      if (st.unitId === NEW) {
+        const gradeId = grades.find(g => st.gradeIds.has(g.id)).id;
+        const mine = (await unitsFor({subjectId, gradeId}));
+        const same = mine.find(x => norm(x.title) === norm(newUnit));
+        unitId = same ? same.id : (await db.create('units', {subjectId, gradeId, title: newUnit, order: mine.length + 1})).id;
+      }
       const choice = dlg.querySelector('input[name=src]:checked').value;
       let source = r.source;
       let syncState = r.syncState || 'local-only';
@@ -149,10 +197,11 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
 
       const data = {
         title, type,
-        subjectId: $('#f-subject').value || undefined,
+        subjectId: subjectId || undefined,
         gradeIds: [...st.gradeIds],
-        unitId: st.unitId || undefined,
-        topicIds: [...st.topicIds],
+        unitId: unitId || undefined,
+        typeLabel: type === 'otro' ? ($('#f-typelabel').value.trim() || undefined) : undefined,
+        topicIds: st.unitId === NEW ? [] : [...st.topicIds],
         tags: $('#f-tags').value.split(',').map(s => s.trim()).filter(Boolean),
         notes: $('#f-notes').value.trim() || undefined,
         source, syncState,

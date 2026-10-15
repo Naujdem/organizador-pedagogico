@@ -7,6 +7,7 @@
      ni el perfil. Los archivos viajan por tu Google Drive.
    ============================================================ */
 import * as db from './db.js';
+import {mergeDuplicates} from './dedupe.js';
 
 export const SYNC_STORES = ['grades', 'subjects', 'units', 'topics', 'resources', 'plannings', 'courses'];
 const CHUNK = 200, PAGE = 1000;
@@ -20,6 +21,7 @@ export async function syncWith(sb, userId) {
     await db.metaSet('syncSeeded', false);
   }
   const pulled = await pull(sb);
+  await mergeDuplicates();                              // grados/materias repetidos entre dispositivos
   const pushed = await push(sb, userId);
   await db.metaSet('lastSync', Date.now());
   return {pulled, pushed};

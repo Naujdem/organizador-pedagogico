@@ -61,7 +61,7 @@ export async function render(root) {
         <input class="pick" type="checkbox" data-id="${r.id}" aria-label="Seleccionar ${esc(r.title)}"${picked.has(r.id) ? ' checked' : ''}>
         <button class="body" data-open="${r.id}">
           <div class="t">${t.icon} ${esc(r.title)}</div>
-          <div class="m"><span class="badge${r.type === 'pada' ? ' pada' : ''}">${t.label}</span>${esc(meta)}
+          <div class="m"><span class="badge${r.type === 'pada' ? ' pada' : ''}">${t.label}${r.typeLabel ? ': ' + esc(r.typeLabel) : ''}</span>${esc(meta)}
             ${r.source?.kind === 'drive' ? '☁' : ''}${r.syncState === 'pending' ? '<span class="badge pend">pendiente</span>' : ''}</div>
         </button></div>`;
     }).join('') : `<div class="empty">${Object.values(F).some(Boolean)
@@ -127,7 +127,7 @@ async function showDetail(r, refresh) {
 
   const dlg = modal(`
     <h2>${t.icon} ${esc(r.title)}</h2>
-    <p><span class="badge${r.type === 'pada' ? ' pada' : ''}">${t.label}</span></p>
+    <p><span class="badge${r.type === 'pada' ? ' pada' : ''}">${t.label}${r.typeLabel ? ': ' + esc(r.typeLabel) : ''}</span></p>
     ${rows.map(([k, v]) => `<p><b>${k}:</b> ${esc(v)}</p>`).join('')}
     ${r.notes ? `<p>${esc(r.notes)}</p>` : ''}
     <div class="btns">

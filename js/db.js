@@ -113,7 +113,8 @@ export async function create(store, data = {}) {
 }
 
 export async function update(store, rec, changes = {}) {
-  const next = {...rec, ...changes, updatedAt: Date.now(), deviceId: await deviceId()};
+  /* Siempre posterior a la versión anterior: así un reloj desfasado entre dispositivos no hace perder cambios */
+  const next = {...rec, ...changes, updatedAt: Math.max(Date.now(), (rec.updatedAt || 0) + 1), deviceId: await deviceId()};
   await put(store, next);
   await enqueue(store, next, 'upsert');
   return next;

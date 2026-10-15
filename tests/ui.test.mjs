@@ -59,6 +59,44 @@ dlg.querySelector('#rf').dispatchEvent(new dom.window.Event('submit', {cancelabl
 const all = await st.filterResources({text: 'nuevo desde'});
 assert.equal(all.length, 1, 'el formulario guarda'); assert.deepEqual(all[0].gradeIds, [g7.id]);
 
+// Formulario: materia y unidad nuevas + «Otro» con recuadro
+await form.openResourceForm({defaults: {gradeId: g7.id}});
+const d2 = [...document.querySelectorAll('dialog')].pop();
+assert.equal(d2.querySelector('#type-other').hidden, true, '«¿Qué es?» oculto por defecto');
+change(d2.querySelector('#f-type'), 'otro'); await tick();
+assert.equal(d2.querySelector('#type-other').hidden, false, 'Otro muestra el recuadro');
+d2.querySelector('#f-typelabel').value = 'Rúbrica';
+change(d2.querySelector('#f-subject'), '__new'); await tick();
+assert.equal(d2.querySelector('#new-subject').hidden, false, 'materia nueva muestra su recuadro');
+d2.querySelector('#f-newsubject').value = 'Geología';
+change(d2.querySelector('#f-unit'), '__new'); await tick();
+assert.equal(d2.querySelector('#new-unit').hidden, false, 'unidad nueva muestra su recuadro');
+d2.querySelector('#f-newunit').value = 'La Tierra';
+d2.querySelector('#f-title').value = 'Rúbrica de exposición';
+d2.querySelector('#rf').dispatchEvent(new dom.window.Event('submit', {cancelable: true, bubbles: true})); await tick(); await tick();
+const geo = (await db.live('subjects')).find(x => x.name === 'Geología');
+assert.ok(geo, 'se creó la materia nueva');
+const tierra = (await db.live('units')).find(x => x.title === 'La Tierra');
+assert.ok(tierra && tierra.subjectId === geo.id && tierra.gradeId === g7.id, 'se creó la unidad en la materia y el grado');
+const rub = (await st.filterResources({text: 'rúbrica de exposición'}))[0];
+assert.equal(rub.type, 'otro'); assert.equal(rub.typeLabel, 'Rúbrica'); assert.equal(rub.unitId, tierra.id); assert.equal(rub.subjectId, geo.id);
+// Si escribe el nombre de una materia que ya existe, se reutiliza (no se duplica)
+await form.openResourceForm({defaults: {gradeId: g7.id}});
+const d3 = [...document.querySelectorAll('dialog')].pop();
+change(d3.querySelector('#f-subject'), '__new'); await tick();
+d3.querySelector('#f-newsubject').value = 'geologia';
+d3.querySelector('#f-title').value = 'Otro con materia repetida';
+d3.querySelector('#rf').dispatchEvent(new dom.window.Event('submit', {cancelable: true, bubbles: true})); await tick(); await tick();
+assert.equal((await db.live('subjects')).filter(x => /geolog/i.test(x.name.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))).length, 1, 'no duplica materias');
+// Validación: unidad nueva sin nombre no guarda
+await form.openResourceForm({defaults: {gradeId: g7.id, subjectId: quim.id}});
+const d4 = [...document.querySelectorAll('dialog')].pop();
+change(d4.querySelector('#f-unit'), '__new'); await tick();
+d4.querySelector('#f-title').value = 'No debe guardarse';
+d4.querySelector('#rf').dispatchEvent(new dom.window.Event('submit', {cancelable: true, bubbles: true})); await tick();
+assert.equal((await st.filterResources({text: 'no debe guardarse'})).length, 0, 'unidad nueva sin nombre no guarda');
+[...document.querySelectorAll('dialog')].forEach(d => d.close());
+
 // Estructura, Planeación, Ajustes
 const est = await import(R + 'views/estructura.js');
 await est.render(root);

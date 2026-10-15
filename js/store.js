@@ -29,14 +29,14 @@ export async function seedIfEmpty() {
       ['6°', 'basica'], ['7°', 'basica'], ['8°', 'basica'], ['9°', 'basica'],
       ['10°', 'media'], ['11°', 'media'],
     ];
-    for (const [i, [name, level]] of grades.entries()) await db.create('grades', {name, level, order: i + 1});
+    for (const [i, [name, level]] of grades.entries()) await db.create('grades', {id: 'seed-grade-' + (i + 6), name, level, order: i + 1});
   }
   if ((await db.all('subjects')).length === 0) {
     const subjects = [
       ['Ciencias Naturales', '#2f9e5f'], ['Biología', '#3b8b3b'],
       ['Química', '#c8772d'], ['Física', '#2d6fc8'],
     ];
-    for (const [name, color] of subjects) await db.create('subjects', {name, color});
+    for (const [name, color] of subjects) await db.create('subjects', {id: 'seed-subject-' + name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-'), name, color});
   }
   await db.metaSet('seeded', true);
 }
