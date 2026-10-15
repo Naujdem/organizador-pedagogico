@@ -12,7 +12,9 @@ import * as db from './db.js';
 export const RESOURCE_TYPES = [
   {id: 'video',      label: 'Video',      icon: '🎬'},
   {id: 'taller',     label: 'Taller',     icon: '🧪'},
+  {id: 'diapo',      label: 'Diapositivas', icon: '📊'},
   {id: 'evaluacion', label: 'Evaluación', icon: '📝'},
+  {id: 'lap',        label: 'Laboratorio', icon: '🔬'},
   {id: 'guia',       label: 'Guía',       icon: '📄'},
   {id: 'tarea',      label: 'Tarea',      icon: '🏠'},
   {id: 'pada',       label: 'PADA',       icon: '♿'},
