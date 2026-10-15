@@ -88,6 +88,30 @@ d3.querySelector('#f-newsubject').value = 'geologia';
 d3.querySelector('#f-title').value = 'Otro con materia repetida';
 d3.querySelector('#rf').dispatchEvent(new dom.window.Event('submit', {cancelable: true, bubbles: true})); await tick(); await tick();
 assert.equal((await db.live('subjects')).filter(x => /geolog/i.test(x.name.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))).length, 1, 'no duplica materias');
+// Grado nuevo con «＋ Otro»: se crea, se marca en el recurso y la unidad nueva queda en ese grado
+await form.openResourceForm({defaults: {}});
+const d5 = [...document.querySelectorAll('dialog')].pop();
+assert.equal(d5.querySelector('#new-grade').hidden, true, 'recuadro de grado oculto por defecto');
+const other = d5.querySelector('#f-gradeother'); other.checked = true; other.dispatchEvent(new dom.window.Event('change', {bubbles: true})); await tick();
+assert.equal(d5.querySelector('#new-grade').hidden, false, '«Otro» en grados muestra el recuadro');
+d5.querySelector('#f-newgrade').value = '12°';
+change(d5.querySelector('#f-subject'), quim.id); await tick();
+change(d5.querySelector('#f-unit'), '__new'); await tick();
+d5.querySelector('#f-newunit').value = 'Química orgánica';
+d5.querySelector('#f-title').value = 'Recurso de grado nuevo';
+d5.querySelector('#rf').dispatchEvent(new dom.window.Event('submit', {cancelable: true, bubbles: true})); await tick(); await tick();
+const g12 = (await db.live('grades')).find(x => x.name === '12°');
+assert.ok(g12 && g12.level === 'media', 'se creó el grado 12° (Media)');
+const rg = (await st.filterResources({text: 'recurso de grado nuevo'}))[0];
+assert.deepEqual(rg.gradeIds, [g12.id], 'el recurso quedó en el grado nuevo');
+assert.equal((await db.get('units', rg.unitId)).gradeId, g12.id, 'la unidad nueva quedó en el grado nuevo');
+// «Otro» con el nombre de un grado que ya existe lo reutiliza
+await form.openResourceForm({defaults: {}});
+const d6 = [...document.querySelectorAll('dialog')].pop();
+const o6 = d6.querySelector('#f-gradeother'); o6.checked = true; o6.dispatchEvent(new dom.window.Event('change', {bubbles: true})); await tick();
+d6.querySelector('#f-newgrade').value = '7°'; d6.querySelector('#f-title').value = 'Grado repetido';
+d6.querySelector('#rf').dispatchEvent(new dom.window.Event('submit', {cancelable: true, bubbles: true})); await tick(); await tick();
+assert.equal((await db.live('grades')).filter(x => x.name === '7°').length, 1, 'no duplica grados');
 // Validación: unidad nueva sin nombre no guarda
 await form.openResourceForm({defaults: {gradeId: g7.id, subjectId: quim.id}});
 const d4 = [...document.querySelectorAll('dialog')].pop();

@@ -19,6 +19,7 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
     subjectId: r.subjectId ?? defaults.subjectId ?? '',
     gradeIds: new Set(r.gradeIds ?? (defaults.gradeId ? [defaults.gradeId] : [])),
     unitId: r.unitId ?? defaults.unitId ?? '',
+    otherGrade: false,                       // ¿marcó «＋ Otro» en los grados?
     topicIds: new Set(r.topicIds ?? (defaults.topicId ? [defaults.topicId] : [])),
   };
   const kind = r.source?.kind || 'link';
@@ -45,7 +46,9 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
 
     <label>Grados</label>
     <div class="grades" id="f-grades">${grades.map(g =>
-      `<label class="chk"><input type="checkbox" value="${g.id}"${st.gradeIds.has(g.id) ? ' checked' : ''}> ${esc(g.name)}</label>`).join('')}</div>
+      `<label class="chk"><input type="checkbox" value="${g.id}"${st.gradeIds.has(g.id) ? ' checked' : ''}> ${esc(g.name)}</label>`).join('')}
+      <label class="chk"><input type="checkbox" id="f-gradeother"> ＋ Otro</label></div>
+    <div id="new-grade" hidden><input id="f-newgrade" placeholder="Escribe el grado (ej. 5° o 12°)" aria-label="Nombre del nuevo grado"></div>
 
     <label for="f-unit">Unidad</label>
     <select id="f-unit"></select>
@@ -94,7 +97,8 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
 
   /* ---- Cascada Unidad → Temas ---- */
   async function fillUnits() {
-    const units = st.subjectId === NEW ? [] : (await unitsFor({subjectId: st.subjectId || undefined}))
+    const onlyNewGrade = st.otherGrade && !st.gradeIds.size;           // un grado nuevo aún no tiene unidades
+    const units = st.subjectId === NEW || onlyNewGrade ? [] : (await unitsFor({subjectId: st.subjectId || undefined}))
       .filter(u => !st.gradeIds.size || st.gradeIds.has(u.gradeId));
     if (st.unitId && st.unitId !== NEW && !units.some(u => u.id === st.unitId)) { st.unitId = ''; st.topicIds.clear(); }
     $('#f-unit').innerHTML = options(units.map(u => ({id: u.id, name: u.title})), st.unitId, '— Sin unidad —') +
@@ -127,7 +131,11 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
     fillUnits();
   };
   $('#f-grades').onchange = e => {
-    e.target.checked ? st.gradeIds.add(e.target.value) : st.gradeIds.delete(e.target.value);
+    if (e.target.id === 'f-gradeother') {
+      st.otherGrade = e.target.checked;
+      $('#new-grade').hidden = !st.otherGrade;
+      if (st.otherGrade) $('#f-newgrade').focus();
+    } else e.target.checked ? st.gradeIds.add(e.target.value) : st.gradeIds.delete(e.target.value);
     fillUnits();
   };
   $('#f-unit').onchange = e => {
@@ -146,18 +154,31 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
     e.preventDefault();
     const title = $('#f-title').value.trim();
     if (!title) return toast('Escribe un título.');
+    const newGrade = st.otherGrade ? $('#f-newgrade').value.trim() : '';
+    if (st.otherGrade && !newGrade) return toast('Escribe el nombre del nuevo grado.');
     const newSubject = st.subjectId === NEW ? $('#f-newsubject').value.trim() : '';
     const newUnit = st.unitId === NEW ? $('#f-newunit').value.trim() : '';
     if (st.subjectId === NEW && !newSubject) return toast('Escribe el nombre de la nueva materia.');
     if (st.unitId === NEW) {
       if (!newUnit) return toast('Escribe el nombre de la nueva unidad.');
       if (!st.subjectId) return toast('Elige la materia de la nueva unidad.');
-      if (!st.gradeIds.size) return toast('Marca al menos un grado para crear la unidad.');
+      if (!st.gradeIds.size && !st.otherGrade) return toast('Marca al menos un grado para crear la unidad.');
     }
     const btn = $('#f-save'); btn.disabled = true; btn.textContent = 'Guardando…';
     try {
       const type = $('#f-type').value;
       /* Materia y unidad nuevas: se crean al guardar (si ya existe una con ese nombre, se reutiliza) */
+      let newGradeId = '';
+      if (st.otherGrade) {
+        const same = grades.find(g => norm(g.name) === norm(newGrade));
+        if (same) newGradeId = same.id;
+        else {
+          const n = parseInt(newGrade, 10);                                  // 10° en adelante = Media
+          const order = Math.max(0, ...grades.map(g => g.order || 0)) + 1;
+          newGradeId = (await db.create('grades', {name: newGrade, level: n >= 10 ? 'media' : 'basica', order})).id;
+        }
+      }
+      const gradeIds = [...new Set([...st.gradeIds, ...(newGradeId ? [newGradeId] : [])])];
       let subjectId = st.subjectId === NEW ? '' : $('#f-subject').value;
       if (st.subjectId === NEW) {
         const same = subjects.find(x => norm(x.name) === norm(newSubject));
@@ -165,7 +186,7 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
       }
       let unitId = st.unitId === NEW ? '' : st.unitId;
       if (st.unitId === NEW) {
-        const gradeId = grades.find(g => st.gradeIds.has(g.id)).id;
+        const gradeId = (grades.find(g => st.gradeIds.has(g.id)) || {}).id || newGradeId;
         const mine = (await unitsFor({subjectId, gradeId}));
         const same = mine.find(x => norm(x.title) === norm(newUnit));
         unitId = same ? same.id : (await db.create('units', {subjectId, gradeId, title: newUnit, order: mine.length + 1})).id;
@@ -198,7 +219,7 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
       const data = {
         title, type,
         subjectId: subjectId || undefined,
-        gradeIds: [...st.gradeIds],
+        gradeIds,
         unitId: unitId || undefined,
         typeLabel: type === 'otro' ? ($('#f-typelabel').value.trim() || undefined) : undefined,
         topicIds: st.unitId === NEW ? [] : [...st.topicIds],
