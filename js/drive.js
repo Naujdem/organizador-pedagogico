@@ -1,62 +1,112 @@
 /* ============================================================
    drive.js · Organizador Pedagógico
-   Google Drive PERSONAL del docente (sin servidor propio ni suscripción).
+   Google Drive PERSONAL del docente, igual que en SimulaPro:
+     - Se conecta UNA sola vez (botón en Ajustes). El permiso permanente lo guarda
+       la función «drive-token» de tu Supabase (el navegador nunca lo ve).
+     - Después, los archivos se suben solos a la carpeta «Organizador Pedagógico».
      - Scope mínimo «drive.file»: la app solo ve los archivos que ella misma crea.
-     - Cada docente pega su propio «Client ID» de Google (Ajustes), así los
-       archivos y los permisos son suyos y no dependen de nadie más.
-     - El token dura ~1 h y vive solo en memoria; se renueva con un toque.
-   API: driveConfigured(), driveConnected(), driveConnect(), driveUpload(blob, name)
+     - El token de acceso dura ~1 h, vive solo en memoria y se renueva solo.
+   API: driveLinked(), driveConnect(), driveUpload(blob, name), preloadGis()
    ============================================================ */
 import * as db from './db.js';
+import {GOOGLE_CLIENT_ID} from './config.js';
 
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const FOLDER = 'Organizador Pedagógico';
 const API = 'https://www.googleapis.com/drive/v3';
 const UP = 'https://www.googleapis.com/upload/drive/v3';
 
-let tok = null;   // {t, exp}
+export class DriveError extends Error {
+  constructor(code, message) { super(message); this.code = code; }   // 'noconnect' | 'reconnect' | 'login' | 'other'
+}
 
-export const driveConfigured = async () => !!(await db.metaGet('gClientId'));
-export const driveConnected = () => !!(tok && tok.exp > Date.now() + 60000);
+/* Cliente de Supabase (se puede reemplazar en las pruebas) */
+let clientProvider = async () => (await import('./cloud.js')).cloud();
+export const setClientProvider = f => { clientProvider = f; };
 
-function loadGis() {
-  if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
-  return new Promise((ok, ko) => {
+/* ¿Ya se conectó Drive en este dispositivo? (la validez real se comprueba al subir) */
+export const driveLinked = async () => !!(await db.metaGet('driveLinked'));
+
+/* ---------- Google Identity Services ---------- */
+let gis = null;
+export function preloadGis() {                 // cargarlo antes del clic evita que bloqueen la ventana emergente
+  if (gis) return gis;
+  gis = new Promise((ok, ko) => {
+    if (window.google && google.accounts && google.accounts.oauth2) return ok();
     const s = document.createElement('script');
     s.src = 'https://accounts.google.com/gsi/client';
-    s.onload = ok;
-    s.onerror = () => ko(new Error('No se pudo cargar Google (¿sin internet?)'));
+    s.async = true;
+    s.onload = () => ok();
+    s.onerror = () => { gis = null; ko(new DriveError('other', 'No se pudo cargar Google (¿sin internet?)')); };
     document.head.append(s);
   });
+  return gis;
+}
+
+function requestCode() {
+  return new Promise((ok, ko) => {
+    if (!(window.google && google.accounts && google.accounts.oauth2))
+      return ko(new DriveError('other', 'Google aún no cargó. Inténtalo de nuevo en unos segundos.'));
+    google.accounts.oauth2.initCodeClient({
+      client_id: GOOGLE_CLIENT_ID, scope: SCOPE, ux_mode: 'popup', prompt: 'consent',
+      callback: r => r.code ? ok(r.code) : ko(new DriveError('other', 'No se concedió el permiso de Google Drive.')),
+      error_callback: () => ko(new DriveError('other', 'Se cerró la ventana de Google o fue bloqueada.')),
+    }).requestCode();
+  });
+}
+
+/* ---------- Token de acceso (función drive-token) ---------- */
+let cached = null, inflight = null;                // cached = {t, exp}
+
+async function callFn(body) {
+  const sb = await clientProvider();
+  const {data: {session} = {}} = await sb.auth.getSession();
+  if (!session) throw new DriveError('login', 'Inicia sesión para usar Google Drive.');
+  const {data, error} = await sb.functions.invoke('drive-token', {body});
+  if (error) throw new DriveError('other', 'No se pudo hablar con la función drive-token de Supabase (¿está desplegada?).');
+  return data || {};
+}
+
+function keep(r) {
+  if (!r.access_token) throw new DriveError('other', r.message || 'Google no entregó el permiso.');
+  cached = {t: r.access_token, exp: Date.now() + (+r.expires_in || 3600) * 1000 - 60000};
+  return r.access_token;
+}
+
+function getToken() {
+  if (cached && cached.exp > Date.now()) return Promise.resolve(cached.t);
+  if (inflight) return inflight;
+  inflight = (async () => {
+    const r = await callFn({action: 'token'});
+    if (r.error === 'noconnect' || r.error === 'reconnect') {
+      cached = null; await db.metaSet('driveLinked', false);
+      throw new DriveError(r.error, 'Falta conectar Google Drive (Ajustes).');
+    }
+    if (r.error) throw new DriveError('other', r.message || 'Error de Google Drive.');
+    return keep(r);
+  })().finally(() => { inflight = null; });
+  return inflight;
 }
 
 /* Debe llamarse desde un toque del usuario (abre la ventana de Google) */
 export async function driveConnect() {
-  const clientId = await db.metaGet('gClientId');
-  if (!clientId) throw new Error('Falta el Client ID de Google (Ajustes).');
-  if (!navigator.onLine) throw new Error('Necesitas internet para conectar con Drive.');
-  await loadGis();
-  return new Promise((ok, ko) => {
-    google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: SCOPE,
-      callback: r => {
-        if (r.error) return ko(new Error(r.error_description || r.error));
-        tok = {t: r.access_token, exp: Date.now() + (+r.expires_in || 3600) * 1000};
-        ok();
-      },
-      error_callback: e => ko(new Error((e && e.type) || 'La ventana de Google se cerró')),
-    }).requestAccessToken();
-  });
+  if (!navigator.onLine) throw new DriveError('other', 'Necesitas internet para conectar con Drive.');
+  await preloadGis();
+  const code = await requestCode();
+  const r = await callFn({action: 'connect', code});
+  if (r.error) throw new DriveError('other', r.message || 'No se pudo conectar Google Drive.');
+  keep(r);
+  await db.metaSet('driveLinked', true);
 }
 
+/* ---------- Drive ---------- */
 async function gd(url, opt = {}) {
-  if (!driveConnected()) throw new Error('Drive no está conectado.');
-  const r = await fetch(url, {...opt, headers: {Authorization: 'Bearer ' + tok.t, ...opt.headers}});
-  if (r.status === 401) { tok = null; throw new Error('La sesión de Drive caducó. Vuelve a conectar.'); }
+  const t = await getToken();
+  const r = await fetch(url, {...opt, headers: {Authorization: 'Bearer ' + t, ...opt.headers}});
+  if (r.status === 401) { cached = null; throw new DriveError('reconnect', 'La sesión de Drive caducó. Vuelve a intentarlo.'); }
   if (!r.ok) {
     let m = ''; try { m = (await r.json()).error.message; } catch (_) {}
-    const e = new Error('Drive ' + r.status + (m ? ': ' + m : '')); e.status = r.status; throw e;
+    const e = new DriveError('other', 'Drive ' + r.status + (m ? ': ' + m : '')); e.status = r.status; throw e;
   }
   return r;
 }
@@ -88,9 +138,8 @@ async function folderId() {
 export async function driveUpload(blob, name) {
   const parent = await folderId();
   const b = 'op' + Math.random().toString(36).slice(2);
-  const meta = {name, parents: [parent]};
   const body = new Blob([
-    `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`, JSON.stringify(meta),
+    `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`, JSON.stringify({name, parents: [parent]}),
     `\r\n--${b}\r\nContent-Type: ${blob.type || 'application/octet-stream'}\r\n\r\n`, blob,
     `\r\n--${b}--`,
   ]);

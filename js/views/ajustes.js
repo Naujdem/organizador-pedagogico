@@ -4,12 +4,11 @@
    todos tus datos y se puede restaurar en otro dispositivo.
    ============================================================ */
 import * as db from '../db.js';
-import {driveConnect, driveConnected} from '../drive.js';
+import {driveConnect, driveLinked, preloadGis} from '../drive.js';
 import {esc, toast, download} from '../ui.js';
 
 export async function render(root) {
   const [profile] = await db.live('profile');
-  const clientId = (await db.metaGet('gClientId')) || '';
   const p = profile || {};
 
   root.innerHTML = `
@@ -21,11 +20,9 @@ export async function render(root) {
       <div class="btns"><button class="primary" id="p-save">Guardar perfil</button></div></div>
 
     <div class="card" style="margin-top:14px"><h3>Google Drive</h3>
-      <p class="hint">Tus archivos se guardan en <b>tu</b> Drive, en la carpeta «Organizador Pedagógico». La app solo ve lo que ella misma sube.
-        Necesitas un <i>Client ID</i> de OAuth (tipo «Aplicación web») creado en Google Cloud Console, con esta dirección como origen autorizado: <code>${esc(location.origin)}</code></p>
-      <label for="g-id">Client ID de Google</label><input id="g-id" value="${esc(clientId)}" placeholder="xxxx.apps.googleusercontent.com">
-      <div class="btns"><button id="g-save">Guardar ID</button>
-        <button class="primary" id="g-conn">${driveConnected() ? '✓ Conectado' : 'Conectar con Drive'}</button></div></div>
+      <p class="hint">Conéctalo una sola vez y tus archivos adjuntos se guardarán solos en <b>tu</b> Drive, en la carpeta «Organizador Pedagógico», para abrirlos desde cualquier dispositivo. La app solo ve lo que ella misma sube. Necesitas haber iniciado sesión.</p>
+      <p class="hint" id="g-state"></p>
+      <div class="btns"><button class="primary" id="g-conn">Conectar Google Drive</button></div></div>
 
     <div class="card" style="margin-top:14px"><h3>Cuenta y nube</h3>
       <p class="hint" id="c-state">Sin iniciar sesión. Inicia sesión con Google para guardar tus datos en la nube.</p>
@@ -49,13 +46,17 @@ export async function render(root) {
     profile ? await db.update('profile', profile, data) : await db.create('profile', data);
     toast('Perfil guardado');
   };
-  $('#g-save').onclick = async () => { await db.metaSet('gClientId', $('#g-id').value.trim()); toast('Client ID guardado'); };
+  /* ---- Google Drive (una sola conexión) ---- */
+  const drawDrive = async () => {
+    const on = await driveLinked();
+    $('#g-state').textContent = on ? '✓ Drive conectado: los archivos que adjuntes se guardan solos.' : 'Aún no está conectado.';
+    $('#g-conn').textContent = on ? 'Reconectar Drive' : 'Conectar Google Drive';
+  };
+  drawDrive();
+  preloadGis().catch(() => {});                       // cargado de antemano, la ventana de Google no se bloquea
   $('#g-conn').onclick = async () => {
-    try {
-      await db.metaSet('gClientId', $('#g-id').value.trim());
-      await driveConnect();
-      $('#g-conn').textContent = '✓ Conectado'; toast('Drive conectado');
-    } catch (e) { toast(e.message, 5000); }
+    try { await driveConnect(); toast('Drive conectado'); drawDrive(); }
+    catch (e) { toast(e.message || String(e), 6000); }
   };
   /* ---- Cuenta de Google (Supabase) ---- */
   async function drawAccount() {

@@ -6,7 +6,7 @@
   "description": "PWA offline-first para docentes de ciencias (Módulo 1: Planeación y Recursos)",
   "scripts": {
     "start": "npx serve . -l 5173",
-    "test": "node tests/data.test.mjs && node tests/ui.test.mjs && node tests/sync.test.mjs"
+    "test": "node tests/data.test.mjs && node tests/ui.test.mjs && node tests/sync.test.mjs && node tests/drive.test.mjs"
   },
   "devDependencies": {
     "fake-indexeddb": "^6.0.0",

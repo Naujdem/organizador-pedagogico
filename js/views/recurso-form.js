@@ -6,7 +6,7 @@
    ============================================================ */
 import * as db from '../db.js';
 import {RESOURCE_TYPES, unitsFor, topicsFor, norm} from '../store.js';
-import {driveConnected, driveUpload} from '../drive.js';
+import {driveLinked, driveUpload} from '../drive.js';
 import {esc, options, modal, toast} from '../ui.js';
 
 const NEW = '__new';   // valor de «＋ Otra materia / unidad…»
@@ -23,7 +23,7 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
     topicIds: new Set(r.topicIds ?? (defaults.topicId ? [defaults.topicId] : [])),
   };
   const kind = r.source?.kind || 'link';
-  const canDrive = driveConnected();
+  const canDrive = await driveLinked();
 
   const dlg = modal(`
   <form id="rf">
@@ -80,8 +80,8 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
       <input id="f-file" type="file">
       ${r.source && (r.source.kind === 'local' || r.source.kind === 'drive')
         ? `<p class="hint">Archivo actual conservado. Elige otro solo si quieres reemplazarlo.</p>` : ''}
-      <label class="chk"><input type="checkbox" id="f-drive"${canDrive ? '' : ' disabled'}> Subir también a mi Google Drive
-        ${canDrive ? '' : '<span class="hint">(conecta Drive en Ajustes)</span>'}</label>
+      <label class="chk"><input type="checkbox" id="f-drive"${canDrive ? ' checked' : ' disabled'}> Guardar también en mi Google Drive
+        ${canDrive ? '<span class="hint">(se sube sola)</span>' : '<span class="hint">(conecta Drive en Ajustes)</span>'}</label>
     </div>
 
     <label for="f-notes">Notas</label>
@@ -206,7 +206,7 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
           const blobId = await db.saveBlob(file);
           source = {kind: 'local', blobId, mimeType: file.type, size: file.size, name: file.name};
           syncState = 'local-only';
-          if ($('#f-drive').checked && driveConnected()) {
+          if ($('#f-drive').checked && canDrive) {
             try {
               const up = await driveUpload(file, file.name);
               source = {kind: 'drive', ...up, blobId, size: file.size, name: file.name};
