@@ -27,6 +27,10 @@ export async function render(root) {
       <div class="btns"><button id="g-save">Guardar ID</button>
         <button class="primary" id="g-conn">${driveConnected() ? '✓ Conectado' : 'Conectar con Drive'}</button></div></div>
 
+    <div class="card" style="margin-top:14px"><h3>Nube (Supabase)</h3>
+      <p class="hint">Comprueba que la app llega a tu base de datos en la nube.</p>
+      <div class="btns"><button id="c-test">Probar conexión</button></div></div>
+
     <div class="card" style="margin-top:14px"><h3>Respaldo</h3>
       <p class="hint">Descarga una copia completa de tus datos o restaura una anterior. Al restaurar se conserva el registro más reciente de cada elemento.</p>
       <div class="btns"><button id="b-exp">Descargar respaldo</button>
@@ -48,6 +52,14 @@ export async function render(root) {
       await driveConnect();
       $('#g-conn').textContent = '✓ Conectado'; toast('Drive conectado');
     } catch (e) { toast(e.message, 5000); }
+  };
+  $('#c-test').onclick = async () => {
+    const b = $('#c-test'); b.disabled = true; b.textContent = 'Probando…';
+    try {
+      const {testConnection} = await import('../cloud.js');
+      toast(await testConnection(), 5000);
+    } catch (e) { toast('Error: ' + (e.message || e), 8000); }
+    b.disabled = false; b.textContent = 'Probar conexión';
   };
   $('#b-exp').onclick = async () => {
     const data = await db.exportAll();
