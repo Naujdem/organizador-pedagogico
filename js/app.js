@@ -7,7 +7,7 @@
    ============================================================ */
 import * as db from './db.js';
 import {seedIfEmpty} from './store.js';
-import {$, $$} from './ui.js';
+import {$, $$, toast} from './ui.js';
 
 const ROUTES = {
   inicio:     () => import('./views/inicio.js'),
@@ -59,6 +59,17 @@ async function boot() {
   netUI();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  /* ¿Volvemos de Google? Canjea el código y regresa a la pantalla donde estabas */
+  if (/[?&](code|error)=/.test(location.search)) {
+    try {
+      const {finishLogin} = await import('./cloud.js');
+      if (await finishLogin()) {
+        let back = '#/ajustes'; try { back = sessionStorage.getItem('op_return') || back; sessionStorage.removeItem('op_return'); } catch (_) {}
+        location.hash = back;
+        toast('Sesión iniciada');
+      }
+    } catch (e) { toast('No se pudo iniciar sesión: ' + (e.message || e), 7000); }
+  }
   go();
 }
 boot();

@@ -27,9 +27,12 @@ export async function render(root) {
       <div class="btns"><button id="g-save">Guardar ID</button>
         <button class="primary" id="g-conn">${driveConnected() ? '✓ Conectado' : 'Conectar con Drive'}</button></div></div>
 
-    <div class="card" style="margin-top:14px"><h3>Nube (Supabase)</h3>
-      <p class="hint">Comprueba que la app llega a tu base de datos en la nube.</p>
-      <div class="btns"><button id="c-test">Probar conexión</button></div></div>
+    <div class="card" style="margin-top:14px"><h3>Cuenta y nube</h3>
+      <p class="hint" id="c-state">Sin iniciar sesión. Inicia sesión con Google para guardar tus datos en la nube.</p>
+      <div class="btns">
+        <button class="primary" id="c-login">Iniciar sesión con Google</button>
+        <button id="c-logout" hidden>Cerrar sesión</button>
+        <button id="c-test">Probar conexión</button></div></div>
 
     <div class="card" style="margin-top:14px"><h3>Respaldo</h3>
       <p class="hint">Descarga una copia completa de tus datos o restaura una anterior. Al restaurar se conserva el registro más reciente de cada elemento.</p>
@@ -53,6 +56,24 @@ export async function render(root) {
       $('#g-conn').textContent = '✓ Conectado'; toast('Drive conectado');
     } catch (e) { toast(e.message, 5000); }
   };
+  /* ---- Cuenta de Google (Supabase) ---- */
+  async function drawAccount() {
+    try {
+      const {currentUser} = await import('../cloud.js');
+      const u = await currentUser();
+      $('#c-state').innerHTML = u ? `Sesión iniciada como <b>${esc(u.email || 'usuario')}</b>.` : 'Sin iniciar sesión. Inicia sesión con Google para guardar tus datos en la nube.';
+      $('#c-login').hidden = !!u; $('#c-logout').hidden = !u;
+    } catch (_) { /* sin internet o sin Supabase: se deja el estado por defecto */ }
+  }
+  $('#c-login').onclick = async () => {
+    try { const {signInWithGoogle} = await import('../cloud.js'); await signInWithGoogle(); }
+    catch (e) { toast(e.message || String(e), 6000); }
+  };
+  $('#c-logout').onclick = async () => {
+    try { const {signOut} = await import('../cloud.js'); await signOut(); toast('Sesión cerrada'); drawAccount(); }
+    catch (e) { toast(e.message || String(e), 6000); }
+  };
+  drawAccount();
   $('#c-test').onclick = async () => {
     const b = $('#c-test'); b.disabled = true; b.textContent = 'Probando…';
     try {
