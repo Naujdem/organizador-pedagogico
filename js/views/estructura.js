@@ -251,7 +251,7 @@ async function levelTopic(grade, subject, topic) {
     <div class="btns">${iconBtn('edit-topic', topic.id, 'Editar tema', '✎ Editar tema')}${iconBtn('del-topic', topic.id, 'Eliminar tema', '🗑 Eliminar tema')}</div>
     ${groups.map(({t, items}) => `<h3>${t.icon} ${esc(t.label)} <span class="hint">(${items.length})</span></h3>
       <div class="list">${items.map(r => `<div class="row"><div class="body"><div class="t">${esc(r.title)}</div>
-        <div class="m">${esc([...(r.tags || []), r.notes].filter(Boolean).join(' · '))}</div></div>
+        ${[...(r.tags || []), r.notes].filter(Boolean).length ? `<div class="m">${esc([...(r.tags || []), r.notes].filter(Boolean).join(' · '))}</div>` : ''}</div>
         ${r.source ? `<button class="ghost" data-act="open-res" data-id="${r.id}" aria-label="Abrir">↗</button>` : ''}
         ${iconBtn('edit-res', r.id, 'Editar ' + r.title, '✎')}${iconBtn('del-res', r.id, 'Eliminar ' + r.title, '🗑')}</div>`).join('')}</div>`).join('')
       || '<div class="empty">Este tema aún no tiene recursos.</div>'}
