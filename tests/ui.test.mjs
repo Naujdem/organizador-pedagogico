@@ -121,6 +121,26 @@ d4.querySelector('#rf').dispatchEvent(new dom.window.Event('submit', {cancelable
 assert.equal((await st.filterResources({text: 'no debe guardarse'})).length, 0, 'unidad nueva sin nombre no guarda');
 [...document.querySelectorAll('dialog')].forEach(d => d.close());
 
+// Pantalla de entrada
+const lg = await import(R + 'login.js');
+lg.maybeShowLogin();
+let ov = document.getElementById('login');
+assert.ok(ov, 'sin sesión ni «sin cuenta» se muestra la pantalla de entrada');
+assert.match(ov.textContent, /Entrar/); assert.match(ov.textContent, /Continuar con Google/); assert.match(ov.textContent, /Regístrate/);
+ov.querySelector('#l-toggle').click();
+assert.ok(ov.querySelector('#l-pass2'), 'Regístrate pide repetir la contraseña');
+assert.match(ov.textContent, /Crear cuenta/);
+ov.querySelector('#l-mail').value = 'a@b.co'; ov.querySelector('#l-pass').value = 'abc123'; ov.querySelector('#l-pass2').value = 'otra';
+ov.querySelector('form').dispatchEvent(new dom.window.Event('submit', {cancelable: true, bubbles: true})); await tick();
+assert.match(ov.querySelector('.login-msg').textContent, /no coinciden/, 'valida contraseñas distintas');
+ov.querySelector('#l-toggle').click(); ov.querySelector('#l-guest').click();
+assert.equal(document.getElementById('login'), null, '«Continuar sin cuenta» cierra la pantalla');
+lg.maybeShowLogin();
+assert.equal(document.getElementById('login'), null, 'y no vuelve a aparecer');
+lg.forgetGuest(); lg.maybeShowLogin();
+assert.ok(document.getElementById('login'), 'al cerrar sesión se vuelve a pedir');
+document.getElementById('login').remove();
+
 // Estructura, Planeación, Ajustes
 const est = await import(R + 'views/estructura.js');
 await est.render(root);

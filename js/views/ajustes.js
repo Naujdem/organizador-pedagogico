@@ -30,7 +30,7 @@ export async function render(root) {
     <div class="card" style="margin-top:14px"><h3>Cuenta y nube</h3>
       <p class="hint" id="c-state">Sin iniciar sesión. Inicia sesión con Google para guardar tus datos en la nube.</p>
       <div class="btns">
-        <button class="primary" id="c-login">Iniciar sesión con Google</button>
+        <button class="primary" id="c-login">Iniciar sesión</button>
         <button id="c-logout" hidden>Cerrar sesión</button>
         <button id="c-sync">Sincronizar ahora</button>
         <button id="c-test">Probar conexión</button></div></div>
@@ -67,11 +67,15 @@ export async function render(root) {
     } catch (_) { /* sin internet o sin Supabase: se deja el estado por defecto */ }
   }
   $('#c-login').onclick = async () => {
-    try { const {signInWithGoogle} = await import('../cloud.js'); await signInWithGoogle(); }
-    catch (e) { toast(e.message || String(e), 6000); }
+    const {showLogin} = await import('../login.js'); showLogin();
   };
+  addEventListener('op-auth', () => drawAccount(), {once: true});
   $('#c-logout').onclick = async () => {
-    try { const {signOut} = await import('../cloud.js'); await signOut(); toast('Sesión cerrada'); drawAccount(); }
+    try {
+      const {signOut} = await import('../cloud.js'); await signOut();
+      const {forgetGuest, showLogin} = await import('../login.js'); forgetGuest();
+      toast('Sesión cerrada'); drawAccount(); showLogin();
+    }
     catch (e) { toast(e.message || String(e), 6000); }
   };
   drawAccount();

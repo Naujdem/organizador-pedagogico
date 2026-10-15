@@ -70,3 +70,33 @@ export async function finishLogin() {
   if (err) throw new Error(err);
   return true;
 }
+
+/* ---------- Correo y contraseña ---------- */
+const ES = [
+  [/invalid login credentials/i, 'Correo o contraseña incorrectos. Si te registraste con Google, usa «Continuar con Google».'],
+  [/email not confirmed/i, 'Confirma tu correo primero: te enviamos un enlace.'],
+  [/already registered|already been registered/i, 'Ese correo ya tiene cuenta. Entra con tu contraseña o con Google.'],
+  [/password should be at least|at least 6/i, 'La contraseña debe tener al menos 6 caracteres.'],
+  [/valid email|invalid format|unable to validate email/i, 'Escribe un correo válido.'],
+  [/rate limit|too many/i, 'Demasiados intentos. Espera un momento e inténtalo de nuevo.'],
+];
+const friendly = m => (ES.find(([re]) => re.test(m)) || [0, m])[1];
+
+export async function signInWithPassword(email, password) {
+  if (!navigator.onLine) throw new Error('Necesitas internet para iniciar sesión.');
+  const sb = await cloud();
+  const {error} = await sb.auth.signInWithPassword({email, password});
+  if (error) throw new Error(friendly(error.message));
+}
+
+/* Devuelve {needsConfirm}: true si Supabase pide confirmar el correo antes de entrar */
+export async function signUpWithPassword(email, password) {
+  if (!navigator.onLine) throw new Error('Necesitas internet para crear la cuenta.');
+  const sb = await cloud();
+  const {data, error} = await sb.auth.signUp({email, password, options: {emailRedirectTo: here()}});
+  if (error) throw new Error(friendly(error.message));
+  /* Supabase no avisa si el correo ya existe: devuelve un usuario sin identidades */
+  if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0)
+    throw new Error(friendly('already registered'));
+  return {needsConfirm: !data.session};
+}
