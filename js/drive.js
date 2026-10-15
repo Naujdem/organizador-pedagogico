@@ -6,7 +6,7 @@
      - Después, los archivos se suben solos a la carpeta «Organizador Pedagógico».
      - Scope mínimo «drive.file»: la app solo ve los archivos que ella misma crea.
      - El token de acceso dura ~1 h, vive solo en memoria y se renueva solo.
-   API: driveLinked(), driveConnect(), driveUpload(blob, name), preloadGis()
+   API: driveLinked(), driveAutoLink(), driveConnect(), driveUpload(blob, name), preloadGis()
    ============================================================ */
 import * as db from './db.js';
 import {GOOGLE_CLIENT_ID} from './config.js';
@@ -86,6 +86,20 @@ function getToken() {
     return keep(r);
   })().finally(() => { inflight = null; });
   return inflight;
+}
+
+/* El permiso vive en tu cuenta (en Supabase), no en el dispositivo. Si ya conectaste Drive
+   desde otro dispositivo o en otra sesión, esto lo detecta solo, sin pedirte nada.
+   Solo corre con sesión iniciada. Devuelve true si Drive queda conectado. */
+export async function driveAutoLink() {
+  if (await driveLinked()) return true;
+  if (!navigator.onLine) return false;
+  let hasSession = false;
+  try { hasSession = Object.keys(localStorage).some(k => /^sb-.*-auth-token$/.test(k)); } catch (_) {}
+  if (!hasSession) return false;
+  try { await getToken(); } catch (_) { return false; }     // sin permiso guardado: falta el primer «Conectar»
+  await db.metaSet('driveLinked', true);
+  return true;
 }
 
 /* Debe llamarse desde un toque del usuario (abre la ventana de Google) */

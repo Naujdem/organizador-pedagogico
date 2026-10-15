@@ -67,6 +67,7 @@ async function boot() {
         let back = '#/ajustes'; try { back = sessionStorage.getItem('op_return') || back; sessionStorage.removeItem('op_return'); } catch (_) {}
         location.hash = back;
         toast('Sesión iniciada');
+        dispatchEvent(new Event('op-auth'));
       }
     } catch (e) { toast('No se pudo iniciar sesión: ' + (e.message || e), 7000); }
   }
@@ -77,6 +78,10 @@ async function boot() {
   let st; addEventListener('op-changed', () => { clearTimeout(st); st = setTimeout(sync, 3000); });
   addEventListener('online', sync);
   sync();
+  /* Drive: si el permiso ya existe en tu cuenta, se conecta solo (al abrir, al volver la red y al iniciar sesión) */
+  const driveLink = () => import('./drive.js').then(m => m.driveAutoLink()).catch(() => {});
+  addEventListener('online', driveLink); addEventListener('op-auth', driveLink);
+  driveLink();
   go();
 }
 boot();

@@ -4,7 +4,7 @@
    todos tus datos y se puede restaurar en otro dispositivo.
    ============================================================ */
 import * as db from '../db.js';
-import {driveConnect, driveLinked, preloadGis} from '../drive.js';
+import {driveConnect, driveLinked, driveAutoLink, preloadGis} from '../drive.js';
 import {esc, toast, download} from '../ui.js';
 
 export async function render(root) {
@@ -53,6 +53,7 @@ export async function render(root) {
     $('#g-conn').textContent = on ? 'Reconectar Drive' : 'Conectar Google Drive';
   };
   drawDrive();
+  driveAutoLink().then(drawDrive).catch(() => {});      // si ya estaba conectado en tu cuenta, se detecta solo
   preloadGis().catch(() => {});                       // cargado de antemano, la ventana de Google no se bloquea
   $('#g-conn').onclick = async () => {
     try { await driveConnect(); toast('Drive conectado'); drawDrive(); }

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 /* Navegador mínimo: el módulo solo usa window/google al conectar */
 globalThis.window = globalThis;
 Object.defineProperty(globalThis, 'navigator', {value: {onLine: true}, configurable: true});
+globalThis.localStorage = {'sb-abc-auth-token': '{}'};     // hay sesión guardada
 
 const root = new URL('../js/', import.meta.url).pathname;
 const db = await import(root + 'db.js');
@@ -39,6 +40,15 @@ globalThis.fetch = async (url, opt = {}) => {
 /* 1) Sin conectar: subir falla con «noconnect» y no se marca como conectado */
 assert.equal(await drive.driveLinked(), false);
 await assert.rejects(() => drive.driveUpload(new Blob(['x'], {type: 'application/pdf'}), 'a.pdf'), e => e.code === 'noconnect');
+
+/* 1b) Detección automática: sin permiso guardado en la cuenta no conecta (falta el primer «Conectar») */
+assert.equal(await drive.driveAutoLink(), false);
+assert.equal(await drive.driveLinked(), false);
+/* 1c) Otro dispositivo ya conectó: el permiso existe en la cuenta → este dispositivo se conecta solo */
+linked = true;
+assert.equal(await drive.driveAutoLink(), true, 'se conecta solo');
+assert.equal(await drive.driveLinked(), true);
+await db.metaSet('driveLinked', false);
 
 /* 2) Conectar una vez (ventana de Google → código → función) */
 await drive.driveConnect();
