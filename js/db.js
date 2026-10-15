@@ -101,6 +101,7 @@ export async function deviceId() {
 /* ---------- Registros con estructura Base ---------- */
 async function enqueue(store, rec, op) {
   await tx('syncQueue', 'readwrite', o => o.add({store, id: rec.id, op, ts: Date.now()}));
+  try { dispatchEvent(new Event('op-changed')); } catch (_) {}   // la app decide si sincroniza
 }
 
 export async function create(store, data = {}) {

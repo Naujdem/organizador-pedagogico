@@ -32,6 +32,7 @@ export async function render(root) {
       <div class="btns">
         <button class="primary" id="c-login">Iniciar sesión con Google</button>
         <button id="c-logout" hidden>Cerrar sesión</button>
+        <button id="c-sync">Sincronizar ahora</button>
         <button id="c-test">Probar conexión</button></div></div>
 
     <div class="card" style="margin-top:14px"><h3>Respaldo</h3>
@@ -74,6 +75,15 @@ export async function render(root) {
     catch (e) { toast(e.message || String(e), 6000); }
   };
   drawAccount();
+  $('#c-sync').onclick = async () => {
+    const b = $('#c-sync'); b.disabled = true; b.textContent = 'Sincronizando…';
+    try {
+      const {syncNow} = await import('../sync.js');
+      const r = await syncNow();
+      toast(r ? `Sincronizado: ${r.pushed} subidos, ${r.pulled} recibidos` : 'Inicia sesión y conéctate a internet para sincronizar.', 5000);
+    } catch (e) { toast('Error al sincronizar: ' + (e.message || e), 8000); }
+    b.disabled = false; b.textContent = 'Sincronizar ahora';
+  };
   $('#c-test').onclick = async () => {
     const b = $('#c-test'); b.disabled = true; b.textContent = 'Probando…';
     try {

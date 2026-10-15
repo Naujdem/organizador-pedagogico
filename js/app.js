@@ -70,6 +70,11 @@ async function boot() {
       }
     } catch (e) { toast('No se pudo iniciar sesión: ' + (e.message || e), 7000); }
   }
+  /* Sincronización en segundo plano (solo si hay sesión e internet) */
+  const sync = () => import('./sync.js').then(m => m.syncNow()).catch(e => console.warn('sync:', e.message));
+  let st; addEventListener('op-changed', () => { clearTimeout(st); st = setTimeout(sync, 3000); });
+  addEventListener('online', sync);
+  sync();
   go();
 }
 boot();
