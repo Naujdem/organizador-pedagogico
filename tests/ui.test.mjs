@@ -60,9 +60,23 @@ const all = await st.filterResources({text: 'nuevo desde'});
 assert.equal(all.length, 1, 'el formulario guarda'); assert.deepEqual(all[0].gradeIds, [g7.id]);
 
 // Estructura, Planeación, Ajustes
-await (await import(R + 'views/estructura.js')).render(root);
-change(root.querySelector('#us'), quim.id); await tick(); change(root.querySelector('#ug'), g7.id); await tick();
-assert.match(root.innerHTML, /Mezclas/); assert.match(root.innerHTML, /Separación/);
+const est = await import(R + 'views/estructura.js');
+await est.render(root);
+assert.match(root.innerHTML, /7°/, 'estructura: lista de grados');
+const click = sel => { root.querySelector(sel).click(); return tick(); };
+await click(`[data-act="open-grade"][data-id="${g7.id}"]`);
+assert.match(root.innerHTML, /Materias de 7°/); assert.match(root.innerHTML, /Química/, 'estructura: materias del grado');
+assert.match(root.querySelector(`[data-act="open-subject"][data-id="${quim.id}"]`).textContent, /1 unidad.*2 recursos/, 'conteos');
+await click(`[data-act="open-subject"][data-id="${quim.id}"]`);
+assert.match(root.innerHTML, /Mezclas/); assert.match(root.innerHTML, /Separación/, 'estructura: unidades y temas');
+await click(`[data-act="open-topic"][data-id="${t.id}"]`);
+assert.match(root.innerHTML, /🧪 Taller/, 'estructura: recursos agrupados por tipo');
+assert.equal(root.querySelector('.t b'), null, 'estructura: sin HTML inyectado');
+assert.ok(root.querySelector('[data-act="add-res"][data-type="diapo"]'), 'botón agregar Diapositivas');
+assert.ok(root.querySelector('[data-act="add-res"][data-type="lap"]'), 'botón agregar Laboratorio');
+await click('[data-act="del-res"]'); document.querySelector('dialog').close('ok'); await tick(); await tick();
+assert.match(root.innerHTML, /aún no tiene recursos/, 'eliminar recurso desde el tema');
+await click('[data-lv="0"]'); assert.match(root.innerHTML, /Grados/, 'migas de pan vuelven al inicio');
 const plan = await import(R + 'views/planeacion.js');
 await db.create('plannings', {subjectId: quim.id, gradeId: g7.id, unitId: u.id, sessions: [{id: 's1', date: new Date().toLocaleDateString('en-CA'), objective: 'Separar mezclas', resourceIds: [], done: false}]});
 await plan.render(root); assert.match(root.innerHTML, /Mezclas/);

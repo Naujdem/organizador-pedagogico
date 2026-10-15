@@ -1,11 +1,13 @@
 /* ============================================================
    estructura.js · Estructura académica (el «eje» de la matriz)
-   Grados, Materias y, por materia+grado, Unidades con sus Temas.
-   Sin esto no hay nada que filtrar en el banco de recursos.
+   Se navega de arriba hacia abajo:
+     Grados → Materias → Unidades y temas → Recursos del tema (por tipo)
+   Todo se puede agregar, editar y eliminar en su nivel.
    ============================================================ */
 import * as db from '../db.js';
-import {unitsFor, topicsFor, cascadeDeleteUnit} from '../store.js';
-import {esc, options, modal, toast, confirmDlg} from '../ui.js';
+import {RESOURCE_TYPES, TYPE_LABEL, unitsFor, topicsFor, cascadeDeleteUnit, filterResources} from '../store.js';
+import {esc, modal, toast, confirmDlg} from '../ui.js';
+import {openResourceForm} from './recurso-form.js';
 
 /* Diálogo simple de uno o varios campos de texto → promesa con los valores (o null) */
 function ask(title, fields) {
@@ -18,104 +20,241 @@ function ask(title, fields) {
   });
 }
 
-const sel = {subjectId: '', gradeId: ''};
+/* Dónde está el usuario (se conserva al cambiar de sección y volver) */
+const nav = {gradeId: '', subjectId: '', topicId: ''};
+
+const iconBtn = (act, id, label, icon) =>
+  `<button class="ghost" data-act="${act}" data-id="${id}" aria-label="${esc(label)}">${icon}</button>`;
+
+/* Al borrar un tema se quita de los recursos que lo usaban (no quedan referencias rotas) */
+async function cascadeDeleteTopic(topic) {
+  for (const r of await db.byIndex('resources', 'topicIds', topic.id))
+    if (!r.deletedAt) await db.update('resources', r, {topicIds: (r.topicIds || []).filter(i => i !== topic.id)});
+  await db.remove('topics', topic);
+}
+
+async function openSource(r) {
+  const s = r.source;
+  if (!s) return;
+  if (s.kind === 'link') return window.open(s.url, '_blank', 'noopener');
+  if (s.blobId) {
+    const blob = await db.getBlob(s.blobId);
+    if (blob) return window.open(URL.createObjectURL(blob), '_blank');
+  }
+  if (s.kind === 'drive' && s.webViewLink) return window.open(s.webViewLink, '_blank', 'noopener');
+  toast('El archivo no está disponible en este dispositivo.');
+}
 
 export async function render(root) {
   const [grades, subjects] = await Promise.all([db.live('grades'), db.live('subjects')]);
   grades.sort((a, b) => a.order - b.order);
-  if (!sel.subjectId && subjects[0]) sel.subjectId = subjects[0].id;
-  if (!sel.gradeId && grades[0]) sel.gradeId = grades[0].id;
+  const grade = grades.find(g => g.id === nav.gradeId);
+  const subject = grade && subjects.find(s => s.id === nav.subjectId);
+  const topicRec = subject && nav.topicId ? await db.get('topics', nav.topicId) : null;
+  const topic = topicRec && !topicRec.deletedAt ? topicRec : null;
+  if (!grade) Object.assign(nav, {gradeId: '', subjectId: '', topicId: ''});
+  else if (!subject) Object.assign(nav, {subjectId: '', topicId: ''});
+  else if (!topic) nav.topicId = '';
 
-  const units = sel.subjectId && sel.gradeId ? await unitsFor(sel) : [];
-  const topicsByUnit = {};
-  for (const u of units) topicsByUnit[u.id] = await topicsFor(u.id);
+  const crumbs = [`<button class="ghost" data-act="go" data-lv="0">🧭 Estructura</button>`];
+  if (grade) crumbs.push(`<button class="ghost" data-act="go" data-lv="1">${esc(grade.name)}</button>`);
+  if (subject) crumbs.push(`<button class="ghost" data-act="go" data-lv="2">${esc(subject.name)}</button>`);
+  if (topic) crumbs.push(`<b>${esc(topic.title)}</b>`);
 
-  root.innerHTML = `
-    <h2>Estructura académica</h2>
-    <div class="split">
-      <div class="card"><h3>Grados</h3>
-        ${grades.map(g => `<div class="row" data-id="${g.id}"><div class="body"><b>${esc(g.name)}</b>
-          <span class="hint"> ${g.level === 'media' ? 'Media' : 'Básica'}</span></div>
-          <button class="ghost" data-act="edit-grade" data-id="${g.id}" aria-label="Editar ${esc(g.name)}">✎</button>
-          <button class="ghost" data-act="del-grade" data-id="${g.id}" aria-label="Eliminar ${esc(g.name)}">🗑</button></div>`).join('') || '<p class="hint">Sin grados.</p>'}
-        <div class="btns"><button id="add-grade">＋ Grado</button></div></div>
-      <div class="card"><h3>Materias</h3>
-        ${subjects.map(s => `<div class="row" data-id="${s.id}"><div class="body"><b>${esc(s.name)}</b></div>
-          <button class="ghost" data-act="edit-subject" data-id="${s.id}" aria-label="Editar ${esc(s.name)}">✎</button>
-          <button class="ghost" data-act="del-subject" data-id="${s.id}" aria-label="Eliminar ${esc(s.name)}">🗑</button></div>`).join('') || '<p class="hint">Sin materias.</p>'}
-        <div class="btns"><button id="add-subject">＋ Materia</button></div></div>
-    </div>
+  let body;
+  if (!grade) body = await levelGrades(grades);
+  else if (!subject) body = await levelSubjects(grade, subjects);
+  else if (!topic) body = await levelUnits(grade, subject);
+  else body = await levelTopic(grade, subject, topic);
 
-    <h3>Unidades y temas</h3>
-    <div class="filters">
-      <select id="us" aria-label="Materia">${options(subjects, sel.subjectId)}</select>
-      <select id="ug" aria-label="Grado">${options(grades, sel.gradeId)}</select>
-    </div>
-    ${units.map(u => `<div class="card" style="margin-bottom:10px">
-      <div style="display:flex;gap:8px;align-items:center"><b style="flex:1">${esc(u.title)}</b>
-        <button class="ghost" data-act="edit-unit" data-id="${u.id}" aria-label="Editar unidad">✎</button>
-        <button class="ghost" data-act="del-unit" data-id="${u.id}" aria-label="Eliminar unidad">🗑</button></div>
-      ${topicsByUnit[u.id].map(t => `<div style="display:flex;gap:8px;align-items:center;padding-left:12px">
-        <span style="flex:1">• ${esc(t.title)}</span>
-        <button class="ghost" data-act="edit-topic" data-id="${t.id}" aria-label="Editar tema">✎</button>
-        <button class="ghost" data-act="del-topic" data-id="${t.id}" aria-label="Eliminar tema">🗑</button></div>`).join('')}
-      <div class="btns"><button data-act="add-topic" data-id="${u.id}">＋ Tema</button></div></div>`).join('')
-      || '<div class="empty">Esta materia y grado aún no tienen unidades.</div>'}
-    <div class="btns"><button id="add-unit" class="primary"${sel.subjectId && sel.gradeId ? '' : ' disabled'}>＋ Unidad</button></div>`;
-
+  root.innerHTML = `<h2>Estructura académica</h2>
+    <p class="crumbs" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">${crumbs.join(' <span class="hint">›</span> ')}</p>${body}`;
   const again = () => render(root);
-  const $ = s => root.querySelector(s);
-  $('#us').onchange = e => { sel.subjectId = e.target.value; again(); };
-  $('#ug').onchange = e => { sel.gradeId = e.target.value; again(); };
-
-  $('#add-grade').onclick = async () => {
-    const v = await ask('Nuevo grado', [{label: 'Nombre (ej. 7°)', required: true}, {label: 'Nivel: basica o media', value: 'basica'}]);
-    if (!v) return;
-    await db.create('grades', {name: v[0], level: /med/i.test(v[1]) ? 'media' : 'basica', order: grades.length + 1});
-    again();
-  };
-  $('#add-subject').onclick = async () => {
-    const v = await ask('Nueva materia', [{label: 'Nombre', required: true}]);
-    if (!v) return;
-    await db.create('subjects', {name: v[0], color: '#2f9e5f'});
-    again();
-  };
-  $('#add-unit').onclick = async () => {
-    const v = await ask('Nueva unidad', [{label: 'Título', required: true}]);
-    if (!v) return;
-    await db.create('units', {subjectId: sel.subjectId, gradeId: sel.gradeId, title: v[0], order: units.length + 1});
-    again();
-  };
 
   root.onclick = async e => {
     const b = e.target.closest('[data-act]'); if (!b) return;
-    const id = b.dataset.id, act = b.dataset.act;
-    const store = act.endsWith('grade') ? 'grades' : act.endsWith('subject') ? 'subjects' : act.endsWith('unit') ? 'units' : 'topics';
+    const act = b.dataset.act, id = b.dataset.id;
+
+    /* ---- Navegación ---- */
+    if (act === 'go') {
+      const lv = +b.dataset.lv;
+      if (lv < 3) nav.topicId = '';
+      if (lv < 2) nav.subjectId = '';
+      if (lv < 1) nav.gradeId = '';
+      return again();
+    }
+    if (act === 'open-grade') { nav.gradeId = id; nav.subjectId = ''; nav.topicId = ''; return again(); }
+    if (act === 'open-subject') { nav.subjectId = id; nav.topicId = ''; return again(); }
+    if (act === 'open-topic') { nav.topicId = id; return again(); }
+
+    /* ---- Grados ---- */
+    if (act === 'add-grade') {
+      const v = await ask('Nuevo grado', [{label: 'Nombre (ej. 7°)', required: true}, {label: 'Nivel: basica o media', value: 'basica'}]);
+      if (!v) return;
+      await db.create('grades', {name: v[0], level: /med/i.test(v[1]) ? 'media' : 'basica', order: grades.length + 1});
+      return again();
+    }
+    if (act === 'edit-grade') {
+      const rec = await db.get('grades', id);
+      const v = await ask('Editar grado', [{label: 'Nombre', value: rec.name, required: true}, {label: 'Nivel: basica o media', value: rec.level || 'basica'}]);
+      if (!v) return;
+      await db.update('grades', rec, {name: v[0], level: /med/i.test(v[1]) ? 'media' : 'basica'});
+      return again();
+    }
+    if (act === 'del-grade') {
+      if (!(await confirmDlg('¿Eliminar este grado? Los recursos que lo usan conservarán su contenido.'))) return;
+      await db.remove('grades', await db.get('grades', id));
+      if (nav.gradeId === id) Object.assign(nav, {gradeId: '', subjectId: '', topicId: ''});
+      toast('Eliminado'); return again();
+    }
+
+    /* ---- Materias ---- */
+    if (act === 'add-subject') {
+      const v = await ask('Nueva materia', [{label: 'Nombre', required: true}]);
+      if (!v) return;
+      await db.create('subjects', {name: v[0], color: '#2f9e5f'});
+      return again();
+    }
+    if (act === 'edit-subject') {
+      const rec = await db.get('subjects', id);
+      const v = await ask('Editar materia', [{label: 'Nombre', value: rec.name, required: true}]);
+      if (!v) return;
+      await db.update('subjects', rec, {name: v[0]});
+      return again();
+    }
+    if (act === 'del-subject') {
+      if (!(await confirmDlg('¿Eliminar esta materia en todos los grados? Los recursos que la usan conservarán su contenido.'))) return;
+      await db.remove('subjects', await db.get('subjects', id));
+      if (nav.subjectId === id) Object.assign(nav, {subjectId: '', topicId: ''});
+      toast('Eliminado'); return again();
+    }
+
+    /* ---- Unidades ---- */
+    if (act === 'add-unit') {
+      const n = (await unitsFor({subjectId: nav.subjectId, gradeId: nav.gradeId})).length;
+      const v = await ask('Nueva unidad', [{label: 'Título', required: true}]);
+      if (!v) return;
+      await db.create('units', {subjectId: nav.subjectId, gradeId: nav.gradeId, title: v[0], order: n + 1});
+      return again();
+    }
+    if (act === 'edit-unit') {
+      const rec = await db.get('units', id);
+      const v = await ask('Editar unidad', [{label: 'Título', value: rec.title, required: true}]);
+      if (!v) return;
+      await db.update('units', rec, {title: v[0]});
+      return again();
+    }
+    if (act === 'del-unit') {
+      if (!(await confirmDlg('¿Eliminar la unidad y sus temas? Los recursos quedan sin unidad.'))) return;
+      await cascadeDeleteUnit(await db.get('units', id));
+      toast('Eliminado'); return again();
+    }
+
+    /* ---- Temas ---- */
     if (act === 'add-topic') {
-      const v = await ask('Nuevo tema', [{label: 'Título', required: true}]);
+      const n = (await topicsFor(id)).length;
+      const v = await ask('Nuevo tema', [{label: 'Título', required: true}, {label: 'Descripción (opcional)'}]);
       if (!v) return;
-      const n = (topicsByUnit[id] || []).length;
-      await db.create('topics', {unitId: id, title: v[0], order: n + 1});
+      await db.create('topics', {unitId: id, title: v[0], description: v[1] || undefined, order: n + 1});
       return again();
     }
-    const rec = await db.get(store, id);
-    if (act.startsWith('edit')) {
-      const key = store === 'units' || store === 'topics' ? 'title' : 'name';
-      const v = await ask('Editar', [{label: 'Nombre', value: rec[key], required: true}]);
+    if (act === 'edit-topic') {
+      const rec = await db.get('topics', id);
+      const v = await ask('Editar tema', [{label: 'Título', value: rec.title, required: true}, {label: 'Descripción (opcional)', value: rec.description || ''}]);
       if (!v) return;
-      await db.update(store, rec, {[key]: v[0]});
+      await db.update('topics', rec, {title: v[0], description: v[1] || undefined});
       return again();
     }
-    if (act.startsWith('del')) {
-      const msg = store === 'units' ? '¿Eliminar la unidad y sus temas? Los recursos quedan sin unidad.'
-        : store === 'grades' || store === 'subjects' ? '¿Eliminar? Los recursos que lo usan conservarán su contenido.'
-        : '¿Eliminar este tema?';
-      if (!(await confirmDlg(msg))) return;
-      if (store === 'units') await cascadeDeleteUnit(rec); else await db.remove(store, rec);
-      if (store === 'subjects' && sel.subjectId === id) sel.subjectId = '';
-      if (store === 'grades' && sel.gradeId === id) sel.gradeId = '';
-      toast('Eliminado');
-      again();
+    if (act === 'del-topic') {
+      if (!(await confirmDlg('¿Eliminar este tema? Los recursos se conservan, solo pierden este tema.'))) return;
+      await cascadeDeleteTopic(await db.get('topics', id));
+      if (nav.topicId === id) nav.topicId = '';
+      toast('Eliminado'); return again();
+    }
+
+    /* ---- Recursos del tema ---- */
+    if (act === 'add-res') {
+      return openResourceForm({
+        defaults: {gradeId: nav.gradeId, subjectId: nav.subjectId, unitId: topic.unitId, topicId: nav.topicId, type: b.dataset.type || undefined},
+        onSaved: again,
+      });
+    }
+    if (act === 'edit-res') return openResourceForm({resource: await db.get('resources', id), onSaved: again});
+    if (act === 'open-res') return openSource(await db.get('resources', id));
+    if (act === 'del-res') {
+      const r = await db.get('resources', id);
+      if (await confirmDlg(`¿Eliminar «${r.title}»?`)) { await db.remove('resources', r); toast('Recurso eliminado'); again(); }
     }
   };
+}
+
+/* ---------- Nivel 1: grados ---------- */
+async function levelGrades(grades) {
+  return `<h3>Grados</h3>
+    <div class="list">${grades.map(g => `<div class="row">
+      <button class="body" data-act="open-grade" data-id="${g.id}"><div class="t">${esc(g.name)}</div>
+        <div class="m">${g.level === 'media' ? 'Media' : 'Básica'}</div></button>
+      ${iconBtn('edit-grade', g.id, 'Editar ' + g.name, '✎')}${iconBtn('del-grade', g.id, 'Eliminar ' + g.name, '🗑')}</div>`).join('')
+      || '<div class="empty">Aún no hay grados.</div>'}</div>
+    <div class="btns"><button class="primary" data-act="add-grade">＋ Grado</button></div>`;
+}
+
+/* ---------- Nivel 2: materias del grado ---------- */
+async function levelSubjects(grade, subjects) {
+  const rows = [];
+  for (const s of subjects) {
+    const nUnits = (await unitsFor({subjectId: s.id, gradeId: grade.id})).length;
+    const nRes = (await filterResources({gradeId: grade.id, subjectId: s.id})).length;
+    rows.push(`<div class="row">
+      <button class="body" data-act="open-subject" data-id="${s.id}"><div class="t">${esc(s.name)}</div>
+        <div class="m">${nUnits} unidad${nUnits === 1 ? '' : 'es'} · ${nRes} recurso${nRes === 1 ? '' : 's'}</div></button>
+      ${iconBtn('edit-subject', s.id, 'Editar ' + s.name, '✎')}${iconBtn('del-subject', s.id, 'Eliminar ' + s.name, '🗑')}</div>`);
+  }
+  return `<h3>Materias de ${esc(grade.name)}</h3>
+    <div class="list">${rows.join('') || '<div class="empty">Aún no hay materias.</div>'}</div>
+    <div class="btns"><button class="primary" data-act="add-subject">＋ Materia</button></div>`;
+}
+
+/* ---------- Nivel 3: unidades y temas ---------- */
+async function levelUnits(grade, subject) {
+  const units = await unitsFor({subjectId: subject.id, gradeId: grade.id});
+  const cards = [];
+  for (const u of units) {
+    const topics = await topicsFor(u.id);
+    const lines = [];
+    for (const t of topics) {
+      const n = (await filterResources({topicId: t.id})).length;
+      lines.push(`<div class="row"><button class="body" data-act="open-topic" data-id="${t.id}">
+        <div class="t">${esc(t.title)}</div>
+        <div class="m">${n} recurso${n === 1 ? '' : 's'}${t.description ? ' · ' + esc(t.description) : ''}</div></button>
+        ${iconBtn('edit-topic', t.id, 'Editar tema', '✎')}${iconBtn('del-topic', t.id, 'Eliminar tema', '🗑')}</div>`);
+    }
+    cards.push(`<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;gap:8px;align-items:center"><b style="flex:1">${esc(u.title)}</b>
+        ${iconBtn('edit-unit', u.id, 'Editar unidad', '✎')}${iconBtn('del-unit', u.id, 'Eliminar unidad', '🗑')}</div>
+      <div class="list">${lines.join('') || '<p class="hint">Sin temas todavía.</p>'}</div>
+      <div class="btns"><button data-act="add-topic" data-id="${u.id}">＋ Tema</button></div></div>`);
+  }
+  const loose = (await filterResources({gradeId: grade.id, subjectId: subject.id})).filter(r => !(r.topicIds || []).length).length;
+  return `<h3>${esc(subject.name)} · ${esc(grade.name)}</h3>
+    ${cards.join('') || '<div class="empty">Esta materia y grado aún no tienen unidades.</div>'}
+    <div class="btns"><button class="primary" data-act="add-unit">＋ Unidad</button></div>
+    ${loose ? `<p class="hint">${loose} recurso${loose === 1 ? '' : 's'} de esta materia y grado no tiene${loose === 1 ? '' : 'n'} tema. <a href="#/banco">Verlos en Recursos</a></p>` : ''}`;
+}
+
+/* ---------- Nivel 4: recursos del tema, por tipo ---------- */
+async function levelTopic(grade, subject, topic) {
+  const rows = await filterResources({topicId: topic.id});
+  const groups = RESOURCE_TYPES.map(t => ({t, items: rows.filter(r => (TYPE_LABEL[r.type] ? r.type : 'otro') === t.id)})).filter(g => g.items.length);
+  return `<h3>${esc(topic.title)}</h3>
+    ${topic.description ? `<p class="hint">${esc(topic.description)}</p>` : ''}
+    <div class="btns">${iconBtn('edit-topic', topic.id, 'Editar tema', '✎ Editar tema')}${iconBtn('del-topic', topic.id, 'Eliminar tema', '🗑 Eliminar tema')}</div>
+    ${groups.map(({t, items}) => `<h3>${t.icon} ${esc(t.label)} <span class="hint">(${items.length})</span></h3>
+      <div class="list">${items.map(r => `<div class="row"><div class="body"><div class="t">${esc(r.title)}</div>
+        <div class="m">${esc([...(r.tags || []), r.notes].filter(Boolean).join(' · '))}</div></div>
+        ${r.source ? `<button class="ghost" data-act="open-res" data-id="${r.id}" aria-label="Abrir">↗</button>` : ''}
+        ${iconBtn('edit-res', r.id, 'Editar ' + r.title, '✎')}${iconBtn('del-res', r.id, 'Eliminar ' + r.title, '🗑')}</div>`).join('')}</div>`).join('')
+      || '<div class="empty">Este tema aún no tiene recursos.</div>'}
+    <h3>Agregar recurso</h3>
+    <div class="chips">${RESOURCE_TYPES.map(t => `<button class="chip" data-act="add-res" data-type="${t.id}">${t.icon} ${esc(t.label)}</button>`).join('')}</div>`;
 }
