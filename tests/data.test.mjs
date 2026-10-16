@@ -84,3 +84,29 @@ const a = ulid(1000), b = ulid(2000);
 assert.ok(a < b && a.length === 26, 'ULID ordenable, 26 caracteres');
 
 console.log('TODAS LAS PRUEBAS PASARON');
+
+/* Materias por grado: quitar una materia de UN grado elimina sus unidades allí y deja los recursos */
+{
+  const grds = await db.live('grades');
+  const bioRec = (await db.live('subjects')).find(x => x.name === 'Biología');
+  const un = await db.create('units', {subjectId: bioRec.id, gradeId: g8.id, title: 'Células', order: 1});
+  const rs = await db.create('resources', {title: 'Guía células', type: 'guia', subjectId: bioRec.id, gradeIds: [g8.id], unitId: un.id, topicIds: [], tags: []});
+  assert.equal(st.subjectsForGrade([bioRec], g8.id).length, 1, 'sin gradeIds se ve en todos los grados');
+  await st.removeSubjectFromGrade(bioRec, g8.id, grds);
+  const bio2 = await db.get('subjects', bioRec.id);
+  assert.ok(!bio2.deletedAt); assert.equal(st.subjectsForGrade([bio2], g8.id).length, 0, 'ya no se ve en 8°');
+  assert.equal(st.subjectsForGrade([bio2], g7.id).length, 1, 'sigue en 7°');
+  assert.ok((await db.get('units', un.id)).deletedAt, 'sus unidades en 8° se eliminan');
+  assert.ok(!(await db.get('resources', rs.id)).deletedAt, 'los recursos se conservan');
+  await st.addSubjectToGrade(bio2, g8.id);
+  assert.equal(st.subjectsForGrade([await db.get('subjects', bioRec.id)], g8.id).length, 1, 'se puede volver a agregar');
+  /* Al guardar un recurso, la materia debe verse en sus grados */
+  const geo = await db.create('subjects', {name: 'Astronomía', gradeIds: [g7.id]});
+  await st.ensureSubjectInGrades(geo.id, [g7.id, g8.id]);
+  assert.deepEqual((await db.get('subjects', geo.id)).gradeIds, [g7.id, g8.id]);
+  /* Quitar de su último grado elimina la materia */
+  const solo = await db.create('subjects', {name: 'Solo 6', gradeIds: [g7.id]});
+  await st.removeSubjectFromGrade(solo, g7.id, grds);
+  assert.ok((await db.get('subjects', solo.id)).deletedAt, 'sin grados restantes, la materia se elimina');
+}
+console.log('DATOS: materias por grado OK');

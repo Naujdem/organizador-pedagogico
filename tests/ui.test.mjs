@@ -159,6 +159,34 @@ assert.ok(root.querySelector('[data-act="add-res"][data-type="lap"]'), 'botón a
 await click('[data-act="del-res"]'); document.querySelector('dialog').close('ok'); await tick(); await tick();
 assert.match(root.innerHTML, /aún no tiene recursos/, 'eliminar recurso desde el tema');
 await click('[data-lv="0"]'); assert.match(root.innerHTML, /Grados/, 'migas de pan vuelven al inicio');
+
+// Materias por grado: quitar solo de 7°, seguir en los demás, volver a agregarla y eliminar en todos
+const g6 = (await db.live('grades')).find(g => g.name === '6°');
+const fis = (await db.live('subjects')).find(x => x.name === 'Física');
+const sel = id => `[data-act="open-subject"][data-id="${id}"]`;
+const geoRec = (await db.live('subjects')).find(x => x.name === 'Geología');
+assert.deepEqual(geoRec.gradeIds, [g7.id], 'una materia creada desde el formulario queda en el grado elegido');
+await click(`[data-act="open-grade"][data-id="${g7.id}"]`);
+assert.ok(root.querySelector(sel(fis.id)), 'Física aparece en 7°');
+await click(`[data-act="del-subject"][data-id="${fis.id}"]`);
+const dq = document.querySelector('dialog');
+assert.match(dq.textContent, /Quitar solo de 7°/); assert.match(dq.textContent, /Eliminar en todos los grados/);
+dq.querySelector('[data-v="grade"]').click(); await tick(); await tick();
+assert.equal(root.querySelector(sel(fis.id)), null, 'ya no está en 7°');
+const fisAfter = await db.get('subjects', fis.id);
+assert.ok(!fisAfter.deletedAt, 'la materia sigue existiendo'); assert.equal(fisAfter.gradeIds.length, (await db.live('grades')).length - 1, 'queda en todos los demás grados');
+await click('[data-lv="0"]'); await click(`[data-act="open-grade"][data-id="${g6.id}"]`);
+assert.ok(root.querySelector(sel(fis.id)), 'sigue en 6°');
+await click('[data-lv="0"]'); await click(`[data-act="open-grade"][data-id="${g7.id}"]`);
+await click('[data-act="add-subject"]');
+const da = document.querySelector('dialog');
+assert.ok(da.querySelector(`[data-add="${fis.id}"]`), 'ofrece volver a agregar Física');
+da.querySelector(`[data-add="${fis.id}"]`).click(); await tick(); await tick();
+assert.ok(root.querySelector(sel(fis.id)), 'Física vuelve a 7°');
+await click(`[data-act="del-subject"][data-id="${fis.id}"]`);
+document.querySelector('dialog [data-v="all"]').click(); await tick(); await tick();
+assert.ok((await db.get('subjects', fis.id)).deletedAt, 'eliminar en todos los grados borra la materia');
+await click('[data-lv="0"]');
 const plan = await import(R + 'views/planeacion.js');
 await db.create('plannings', {subjectId: quim.id, gradeId: g7.id, unitId: u.id, sessions: [{id: 's1', date: new Date().toLocaleDateString('en-CA'), objective: 'Separar mezclas', resourceIds: [], done: false}]});
 await plan.render(root); assert.match(root.innerHTML, /Mezclas/);

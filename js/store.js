@@ -98,3 +98,28 @@ export async function cascadeDeleteUnit(unit) {
     if (!r.deletedAt) await db.update('resources', r, {unitId: undefined, topicIds: []});
   await db.remove('units', unit);
 }
+
+/* ---------- Materias por grado ----------
+   Una materia sin `gradeIds` se ve en TODOS los grados (comportamiento original).
+   Con `gradeIds` solo se ve en esos grados. */
+export const subjectsForGrade = (subjects, gradeId) => subjects.filter(s => !s.gradeIds || s.gradeIds.includes(gradeId));
+
+export async function addSubjectToGrade(subject, gradeId) {
+  if (!subject.gradeIds || subject.gradeIds.includes(gradeId)) return subject;
+  return db.update('subjects', subject, {gradeIds: [...subject.gradeIds, gradeId]});
+}
+
+/* Una materia usada en estos grados debe verse en ellos (p. ej. al guardar un recurso) */
+export async function ensureSubjectInGrades(subjectId, gradeIds) {
+  let subj = subjectId && await db.get('subjects', subjectId);
+  if (!subj || subj.deletedAt) return;
+  for (const g of gradeIds) subj = await addSubjectToGrade(subj, g);
+}
+
+/* Quita la materia SOLO de este grado: se eliminan sus unidades y temas en ese grado;
+   los recursos conservan su contenido. Si era su último grado, la materia se elimina. */
+export async function removeSubjectFromGrade(subject, gradeId, grades) {
+  for (const u of await unitsFor({subjectId: subject.id, gradeId})) await cascadeDeleteUnit(u);
+  const rest = (subject.gradeIds || grades.map(g => g.id)).filter(i => i !== gradeId);
+  return rest.length ? db.update('subjects', subject, {gradeIds: rest}) : db.remove('subjects', subject);
+}

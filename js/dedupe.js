@@ -36,6 +36,12 @@ export async function mergeDuplicates() {
           } else if (dupIds.has(rec[field])) await db.update(refStore, rec, {[field]: keep.id});
         }
       }
+      if (store === 'subjects') {                              // la materia conservada se ve en la unión de los grados
+        const all = g.some(x => !x.gradeIds);
+        const union = all ? undefined : [...new Set(g.flatMap(x => x.gradeIds))];
+        if (all !== !keep.gradeIds || (union && union.length !== (keep.gradeIds || []).length))
+          await db.update('subjects', keep, {gradeIds: union});
+      }
       for (const d of dups) await db.remove(store, d);
       merged += dups.length;
     }

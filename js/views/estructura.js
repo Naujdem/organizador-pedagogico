@@ -5,7 +5,8 @@
    Todo se puede agregar, editar y eliminar en su nivel.
    ============================================================ */
 import * as db from '../db.js';
-import {RESOURCE_TYPES, TYPE_LABEL, unitsFor, topicsFor, cascadeDeleteUnit, filterResources} from '../store.js';
+import {RESOURCE_TYPES, TYPE_LABEL, unitsFor, topicsFor, cascadeDeleteUnit, filterResources, norm,
+  subjectsForGrade, addSubjectToGrade, removeSubjectFromGrade} from '../store.js';
 import {esc, modal, toast, confirmDlg} from '../ui.js';
 import {openResourceForm} from './recurso-form.js';
 
@@ -17,6 +18,38 @@ function ask(title, fields) {
         <input id="a${i}" value="${esc(f.value || '')}" ${f.required ? 'required' : ''} ${f.type ? `type="${f.type}"` : ''}>`).join('')}
       <div class="btns"><button value="no" formnovalidate>Cancelar</button><button class="primary" value="ok">Guardar</button></div></form>`);
     dlg.addEventListener('close', () => res(dlg.returnValue === 'ok' ? fields.map((_, i) => dlg.querySelector('#a' + i).value.trim()) : null));
+  });
+}
+
+/* Diálogo de opciones: devuelve el valor del botón elegido (o null) */
+function choose(title, text, options) {
+  return new Promise(res => {
+    const dlg = modal(`<div><h2>${esc(title)}</h2><p>${esc(text)}</p>
+      <div class="btns" style="flex-direction:column;align-items:stretch">${options.map(o =>
+        `<button type="button" data-v="${o.v}" class="${o.danger ? 'danger' : ''}">${esc(o.label)}</button>`).join('')}
+        <button type="button" class="ghost" data-v="">Cancelar</button></div></div>`);
+    dlg.querySelectorAll('[data-v]').forEach(b => b.onclick = () => dlg.close(b.dataset.v));
+    dlg.addEventListener('close', () => res(dlg.returnValue || null));
+  });
+}
+
+/* Nueva materia en un grado: escribir el nombre o elegir una que ya existe pero no está en este grado */
+function askSubject(grade, others) {
+  return new Promise(res => {
+    const dlg = modal(`<form><h2>Nueva materia en ${esc(grade.name)}</h2>
+      <label for="ns-n">Nombre</label><input id="ns-n" required>
+      ${others.length ? `<p class="hint" style="margin-top:14px">O agrega una que ya existe en otros grados:</p>
+        <div class="chips">${others.map(o => `<button type="button" class="chip" data-add="${o.id}">${esc(o.name)}</button>`).join('')}</div>` : ''}
+      <div class="btns"><button type="button" data-cancel>Cancelar</button><button class="primary">Guardar</button></div></form>`);
+    let out = null;
+    dlg.querySelectorAll('[data-add]').forEach(b => b.onclick = () => { out = {existingId: b.dataset.add}; dlg.close(); });
+    dlg.querySelector('[data-cancel]').onclick = () => dlg.close();
+    dlg.querySelector('form').onsubmit = e => {
+      e.preventDefault();
+      const name = dlg.querySelector('#ns-n').value.trim();
+      if (name) { out = {name}; dlg.close(); }
+    };
+    dlg.addEventListener('close', () => res(out));
   });
 }
 
@@ -49,7 +82,7 @@ export async function render(root) {
   const [grades, subjects] = await Promise.all([db.live('grades'), db.live('subjects')]);
   grades.sort((a, b) => a.order - b.order);
   const grade = grades.find(g => g.id === nav.gradeId);
-  const subject = grade && subjects.find(s => s.id === nav.subjectId);
+  const subject = grade && subjectsForGrade(subjects, grade.id).find(s => s.id === nav.subjectId);
   const topicRec = subject && nav.topicId ? await db.get('topics', nav.topicId) : null;
   const topic = topicRec && !topicRec.deletedAt ? topicRec : null;
   if (!grade) Object.assign(nav, {gradeId: '', subjectId: '', topicId: ''});
@@ -110,9 +143,16 @@ export async function render(root) {
 
     /* ---- Materias ---- */
     if (act === 'add-subject') {
-      const v = await ask('Nueva materia', [{label: 'Nombre', required: true}]);
+      const here = subjectsForGrade(subjects, nav.gradeId);
+      const v = await askSubject(grade, subjects.filter(s => !here.includes(s)));
       if (!v) return;
-      await db.create('subjects', {name: v[0], color: '#2f9e5f'});
+      if (v.existingId) await addSubjectToGrade(await db.get('subjects', v.existingId), nav.gradeId);
+      else {
+        const same = subjects.find(s => norm(s.name) === norm(v.name));       // mismo nombre: se reutiliza
+        if (!same) await db.create('subjects', {name: v.name, color: '#0ea5e9', gradeIds: [nav.gradeId]});
+        else if (here.includes(same)) toast('Esa materia ya está en este grado.');
+        else await addSubjectToGrade(same, nav.gradeId);
+      }
       return again();
     }
     if (act === 'edit-subject') {
@@ -123,10 +163,16 @@ export async function render(root) {
       return again();
     }
     if (act === 'del-subject') {
-      if (!(await confirmDlg('¿Eliminar esta materia en todos los grados? Los recursos que la usan conservarán su contenido.'))) return;
-      await db.remove('subjects', await db.get('subjects', id));
+      const rec = await db.get('subjects', id);
+      const n = (await unitsFor({subjectId: id, gradeId: nav.gradeId})).length;
+      const choice = await choose(`Quitar «${rec.name}»`,
+        `En ${grade.name} se eliminarán sus ${n} unidad${n === 1 ? '' : 'es'} con sus temas. Los recursos conservan su contenido.`,
+        [{v: 'grade', label: `Quitar solo de ${grade.name}`}, {v: 'all', label: 'Eliminar en todos los grados', danger: true}]);
+      if (!choice) return;
+      if (choice === 'grade') await removeSubjectFromGrade(rec, nav.gradeId, grades);
+      else await db.remove('subjects', rec);
       if (nav.subjectId === id) Object.assign(nav, {subjectId: '', topicId: ''});
-      toast('Eliminado'); return again();
+      toast(choice === 'grade' ? `Quitada de ${grade.name}` : 'Eliminada en todos los grados'); return again();
     }
 
     /* ---- Unidades ---- */
@@ -202,13 +248,13 @@ async function levelGrades(grades) {
 /* ---------- Nivel 2: materias del grado ---------- */
 async function levelSubjects(grade, subjects) {
   const rows = [];
-  for (const s of subjects) {
+  for (const s of subjectsForGrade(subjects, grade.id)) {
     const nUnits = (await unitsFor({subjectId: s.id, gradeId: grade.id})).length;
     const nRes = (await filterResources({gradeId: grade.id, subjectId: s.id})).length;
     rows.push(`<div class="row">
       <button class="body" data-act="open-subject" data-id="${s.id}"><div class="t">${esc(s.name)}</div>
         <div class="m">${nUnits} unidad${nUnits === 1 ? '' : 'es'} · ${nRes} recurso${nRes === 1 ? '' : 's'}</div></button>
-      ${iconBtn('edit-subject', s.id, 'Editar ' + s.name, '✎')}${iconBtn('del-subject', s.id, 'Eliminar ' + s.name, '🗑')}</div>`);
+      ${iconBtn('edit-subject', s.id, 'Editar ' + s.name, '✎')}${iconBtn('del-subject', s.id, 'Quitar ' + s.name, '🗑')}</div>`);
   }
   return `<h3>Materias de ${esc(grade.name)}</h3>
     <div class="list">${rows.join('') || '<div class="empty">Aún no hay materias.</div>'}</div>

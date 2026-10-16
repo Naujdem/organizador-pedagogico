@@ -5,7 +5,7 @@
    openResourceForm({resource?, defaults?, onSaved?})
    ============================================================ */
 import * as db from '../db.js';
-import {RESOURCE_TYPES, unitsFor, topicsFor, norm} from '../store.js';
+import {RESOURCE_TYPES, unitsFor, topicsFor, norm, ensureSubjectInGrades} from '../store.js';
 import {driveLinked, driveUpload} from '../drive.js';
 import {esc, options, modal, toast} from '../ui.js';
 
@@ -182,7 +182,7 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
       let subjectId = st.subjectId === NEW ? '' : $('#f-subject').value;
       if (st.subjectId === NEW) {
         const same = subjects.find(x => norm(x.name) === norm(newSubject));
-        subjectId = same ? same.id : (await db.create('subjects', {name: newSubject, color: '#0ea5e9'})).id;
+        subjectId = same ? same.id : (await db.create('subjects', {name: newSubject, color: '#0ea5e9', gradeIds: gradeIds.length ? gradeIds : undefined})).id;
       }
       let unitId = st.unitId === NEW ? '' : st.unitId;
       if (st.unitId === NEW) {
@@ -230,6 +230,7 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
           ? {studentIds: r.pada?.studentIds || [], adjustmentType: $('#f-padj').value.trim(), baseResourceId: $('#f-pbase').value || undefined}
           : undefined,
       };
+      await ensureSubjectInGrades(subjectId, gradeIds);          // la materia debe verse en los grados del recurso
       const saved = resource ? await db.update('resources', resource, data) : await db.create('resources', data);
       dlg.close();
       toast('Recurso guardado');
