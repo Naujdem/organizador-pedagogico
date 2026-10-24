@@ -1,21 +1,27 @@
 /* ============================================================
-   recurso-form.js · Formulario de recurso (crear / editar)
-   Selectores en cascada: Materia + Grados → Unidad → Temas.
+   recurso-form.js · Formulario de documento (crear / editar)
+   Lo primero es la Biblioteca:
+     · «Mis clases»  → Materia + Grados → Unidad → Temas (cascada de siempre)
+     · las demás     → solo Carpeta (formulario corto)
    Fuente del contenido: enlace (YouTube, web), archivo local o archivo en Drive.
    openResourceForm({resource?, defaults?, onSaved?})
    ============================================================ */
 import * as db from '../db.js';
-import {RESOURCE_TYPES, unitsFor, topicsFor, norm, ensureSubjectInGrades} from '../store.js';
+import {unitsFor, topicsFor, norm, ensureSubjectInGrades, typesForKind, TYPE_LABEL, CLASES_ID, NO_FOLDER,
+  librariesList, foldersFor} from '../store.js';
 import {driveLinked, driveUpload} from '../drive.js';
 import {esc, options, modal, toast} from '../ui.js';
 
-const NEW = '__new';   // valor de «＋ Otra materia / unidad…»
+const NEW = '__new';   // valor de «＋ Otra materia / unidad / carpeta…»
 
 export async function openResourceForm({resource, defaults = {}, onSaved} = {}) {
-  const [grades, subjects, allRes] = await Promise.all([db.live('grades'), db.live('subjects'), db.live('resources')]);
+  const [grades, subjects, allRes, libs] = await Promise.all([db.live('grades'), db.live('subjects'), db.live('resources'), librariesList()]);
   grades.sort((a, b) => a.order - b.order);
+  const kindOf = id => libs.find(l => l.id === id)?.kind || (id === CLASES_ID ? 'clases' : 'libre');
   const r = resource || {};
   const st = {
+    libraryId: r.libraryId || defaults.libraryId || CLASES_ID,        // '' (sin filtro) también cae en Mis clases
+    folderId: r.folderId ?? (defaults.folderId && defaults.folderId !== NO_FOLDER ? defaults.folderId : ''),
     subjectId: r.subjectId ?? defaults.subjectId ?? '',
     gradeIds: new Set(r.gradeIds ?? (defaults.gradeId ? [defaults.gradeId] : [])),
     unitId: r.unitId ?? defaults.unitId ?? '',
@@ -27,36 +33,47 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
 
   const dlg = modal(`
   <form id="rf">
-    <h2>${resource ? 'Editar recurso' : 'Nuevo recurso'}</h2>
+    <h2>${resource ? 'Editar documento' : 'Nuevo documento'}</h2>
+    <label for="f-lib">Biblioteca</label>
+    <select id="f-lib">${libs.map(l =>
+      `<option value="${esc(l.id)}"${l.id === st.libraryId ? ' selected' : ''}>${l.icon || ''} ${esc(l.name)}</option>`).join('')}</select>
+
     <label for="f-title">Título</label>
     <input id="f-title" required value="${esc(r.title || '')}" placeholder="Ej. Taller: mezclas y separación">
 
     <label for="f-type">Tipo</label>
-    <select id="f-type">${RESOURCE_TYPES.map(t =>
-      `<option value="${t.id}"${(r.type || defaults.type || 'taller') === t.id ? ' selected' : ''}>${t.icon} ${t.label}</option>`).join('')}</select>
+    <select id="f-type"></select>
 
     <div id="type-other" hidden>
       <label for="f-typelabel">¿Qué tipo de recurso es?</label>
       <input id="f-typelabel" value="${esc(r.typeLabel || '')}" placeholder="Ej. Mapa conceptual, Rúbrica, Lectura">
     </div>
 
-    <label for="f-subject">Materia</label>
-    <select id="f-subject">${options(subjects, st.subjectId, '— Sin materia —')}<option value="${NEW}"${st.subjectId === NEW ? ' selected' : ''}>＋ Otra materia…</option></select>
-    <div id="new-subject" hidden><input id="f-newsubject" placeholder="Nombre de la nueva materia" aria-label="Nombre de la nueva materia"></div>
+    <div id="class-fields">
+      <label for="f-subject">Materia</label>
+      <select id="f-subject">${options(subjects, st.subjectId, '— Sin materia —')}<option value="${NEW}"${st.subjectId === NEW ? ' selected' : ''}>＋ Otra materia…</option></select>
+      <div id="new-subject" hidden><input id="f-newsubject" placeholder="Nombre de la nueva materia" aria-label="Nombre de la nueva materia"></div>
 
-    <label>Grados</label>
-    <div class="grades" id="f-grades">${grades.map(g =>
-      `<label class="chk"><input type="checkbox" value="${g.id}"${st.gradeIds.has(g.id) ? ' checked' : ''}> ${esc(g.name)}</label>`).join('')}
-      <label class="chk"><input type="checkbox" id="f-gradeother"> ＋ Otro</label></div>
-    <div id="new-grade" hidden><input id="f-newgrade" placeholder="Escribe el grado (ej. 5° o 12°)" aria-label="Nombre del nuevo grado"></div>
+      <label>Grados</label>
+      <div class="grades" id="f-grades">${grades.map(g =>
+        `<label class="chk"><input type="checkbox" value="${g.id}"${st.gradeIds.has(g.id) ? ' checked' : ''}> ${esc(g.name)}</label>`).join('')}
+        <label class="chk"><input type="checkbox" id="f-gradeother"> ＋ Otro</label></div>
+      <div id="new-grade" hidden><input id="f-newgrade" placeholder="Escribe el grado (ej. 5° o 12°)" aria-label="Nombre del nuevo grado"></div>
 
-    <label for="f-unit">Unidad</label>
-    <select id="f-unit"></select>
-    <div id="new-unit" hidden><input id="f-newunit" placeholder="Nombre de la nueva unidad" aria-label="Nombre de la nueva unidad">
-      <p class="hint">Se crea para la materia elegida, en el primer grado marcado.</p></div>
+      <label for="f-unit">Unidad</label>
+      <select id="f-unit"></select>
+      <div id="new-unit" hidden><input id="f-newunit" placeholder="Nombre de la nueva unidad" aria-label="Nombre de la nueva unidad">
+        <p class="hint">Se crea para la materia elegida, en el primer grado marcado.</p></div>
 
-    <label>Temas</label>
-    <div id="f-topics" class="grades"></div>
+      <label>Temas</label>
+      <div id="f-topics" class="grades"></div>
+    </div>
+
+    <div id="libre-fields" hidden>
+      <label for="f-folder">Carpeta</label>
+      <select id="f-folder"></select>
+      <div id="new-folder" hidden><input id="f-newfolder" placeholder="Nombre de la nueva carpeta (ej. Seminario de investigación)" aria-label="Nombre de la nueva carpeta"></div>
+    </div>
 
     <label for="f-tags">Etiquetas (separadas por coma)</label>
     <input id="f-tags" value="${esc((r.tags || []).join(', '))}" placeholder="fotosíntesis, laboratorio">
@@ -95,6 +112,34 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
 
   const $ = s => dlg.querySelector(s);
 
+  /* ---- Tipos según la biblioteca ---- */
+  function fillTypes() {
+    const k = kindOf(st.libraryId);
+    const keep = $('#f-type').value || r.type || defaults.type || '';
+    let list = typesForKind(k);
+    if (keep && r.type === keep && !list.some(t => t.id === keep) && TYPE_LABEL[keep]) list = [...list, TYPE_LABEL[keep]];   // al editar, conserva su tipo
+    const want = list.some(t => t.id === keep) ? keep : (k === 'libre' ? 'trabajo' : 'taller');
+    $('#f-type').innerHTML = list.map(t => `<option value="${t.id}"${t.id === want ? ' selected' : ''}>${t.icon} ${t.label}</option>`).join('');
+  }
+
+  /* ---- Carpetas (bibliotecas libres) ---- */
+  async function fillFolders() {
+    const folders = await foldersFor(st.libraryId);
+    if (st.folderId && st.folderId !== NEW && !folders.some(f => f.id === st.folderId)) st.folderId = '';
+    $('#f-folder').innerHTML = options(folders, st.folderId, '— Sin carpeta —') +
+      `<option value="${NEW}"${st.folderId === NEW ? ' selected' : ''}>＋ Nueva carpeta…</option>`;
+    $('#new-folder').hidden = st.folderId !== NEW;
+  }
+
+  /* Muestra los campos de la biblioteca elegida y oculta los demás */
+  async function applyLibrary() {
+    const libre = kindOf(st.libraryId) === 'libre';
+    $('#class-fields').hidden = libre;
+    $('#libre-fields').hidden = !libre;
+    fillTypes(); togglePada();
+    if (libre) await fillFolders();
+  }
+
   /* ---- Cascada Unidad → Temas ---- */
   async function fillUnits() {
     const onlyNewGrade = st.otherGrade && !st.gradeIds.size;           // un grado nuevo aún no tiene unidades
@@ -111,7 +156,7 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
     for (const id of [...st.topicIds]) if (!topics.some(t => t.id === id)) st.topicIds.delete(id);
     $('#f-topics').innerHTML = topics.length
       ? topics.map(t => `<label class="chk"><input type="checkbox" value="${t.id}"${st.topicIds.has(t.id) ? ' checked' : ''}> ${esc(t.title)}</label>`).join('')
-      : '<span class="hint">Elige una unidad con temas (créalos en Estructura).</span>';
+      : '<span class="hint">Elige una unidad con temas (créalos en Mis clases).</span>';
   }
   function togglePada() {
     const v = $('#f-type').value;
@@ -124,6 +169,12 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
     $('#src-link').hidden = v !== 'link'; $('#src-file').hidden = v !== 'local';
   }
 
+  $('#f-lib').onchange = e => { st.libraryId = e.target.value; st.folderId = ''; applyLibrary(); };
+  $('#f-folder').onchange = e => {
+    st.folderId = e.target.value;
+    $('#new-folder').hidden = st.folderId !== NEW;
+    if (st.folderId === NEW) $('#f-newfolder').focus();
+  };
   $('#f-subject').onchange = e => {
     st.subjectId = e.target.value;
     $('#new-subject').hidden = st.subjectId !== NEW;
@@ -148,49 +199,70 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
   $('#f-type').onchange = togglePada;
   dlg.querySelectorAll('input[name=src]').forEach(i => i.onchange = toggleSrc);
   $('#f-cancel').onclick = () => dlg.close();
-  togglePada(); toggleSrc(); await fillUnits();
+  toggleSrc(); await fillUnits(); await applyLibrary();
 
   $('#rf').onsubmit = async e => {
     e.preventDefault();
     const title = $('#f-title').value.trim();
     if (!title) return toast('Escribe un título.');
-    const newGrade = st.otherGrade ? $('#f-newgrade').value.trim() : '';
-    if (st.otherGrade && !newGrade) return toast('Escribe el nombre del nuevo grado.');
-    const newSubject = st.subjectId === NEW ? $('#f-newsubject').value.trim() : '';
-    const newUnit = st.unitId === NEW ? $('#f-newunit').value.trim() : '';
-    if (st.subjectId === NEW && !newSubject) return toast('Escribe el nombre de la nueva materia.');
-    if (st.unitId === NEW) {
-      if (!newUnit) return toast('Escribe el nombre de la nueva unidad.');
-      if (!st.subjectId) return toast('Elige la materia de la nueva unidad.');
-      if (!st.gradeIds.size && !st.otherGrade) return toast('Marca al menos un grado para crear la unidad.');
+    const libre = kindOf(st.libraryId) === 'libre';
+    const newGrade = !libre && st.otherGrade ? $('#f-newgrade').value.trim() : '';
+    const newSubject = !libre && st.subjectId === NEW ? $('#f-newsubject').value.trim() : '';
+    const newUnit = !libre && st.unitId === NEW ? $('#f-newunit').value.trim() : '';
+    const newFolder = libre && st.folderId === NEW ? $('#f-newfolder').value.trim() : '';
+    if (libre) {
+      if (st.folderId === NEW && !newFolder) return toast('Escribe el nombre de la nueva carpeta.');
+    } else {
+      if (st.otherGrade && !newGrade) return toast('Escribe el nombre del nuevo grado.');
+      if (st.subjectId === NEW && !newSubject) return toast('Escribe el nombre de la nueva materia.');
+      if (st.unitId === NEW) {
+        if (!newUnit) return toast('Escribe el nombre de la nueva unidad.');
+        if (!st.subjectId) return toast('Elige la materia de la nueva unidad.');
+        if (!st.gradeIds.size && !st.otherGrade) return toast('Marca al menos un grado para crear la unidad.');
+      }
     }
     const btn = $('#f-save'); btn.disabled = true; btn.textContent = 'Guardando…';
     try {
       const type = $('#f-type').value;
-      /* Materia y unidad nuevas: se crean al guardar (si ya existe una con ese nombre, se reutiliza) */
-      let newGradeId = '';
-      if (st.otherGrade) {
-        const same = grades.find(g => norm(g.name) === norm(newGrade));
-        if (same) newGradeId = same.id;
-        else {
-          const n = parseInt(newGrade, 10);                                  // 10° en adelante = Media
-          const order = Math.max(0, ...grades.map(g => g.order || 0)) + 1;
-          newGradeId = (await db.create('grades', {name: newGrade, level: n >= 10 ? 'media' : 'basica', order})).id;
+      /* Dónde vive el documento: biblioteca libre (carpeta) o Mis clases (materia, grados, unidad, temas) */
+      let scope, subjectId = '', gradeIds = [];
+      if (libre) {
+        let folderId = st.folderId === NEW ? '' : st.folderId;
+        if (st.folderId === NEW) {                                        // carpeta nueva (si ya hay una con ese nombre, se reutiliza)
+          const mine = await foldersFor(st.libraryId);
+          const same = mine.find(x => norm(x.name) === norm(newFolder));
+          folderId = same ? same.id : (await db.create('folders', {libraryId: st.libraryId, name: newFolder, order: mine.length + 1})).id;
         }
+        scope = {libraryId: st.libraryId, folderId: folderId || undefined, subjectId: undefined, gradeIds: [], unitId: undefined, topicIds: []};
+      } else {
+        /* Materia y unidad nuevas: se crean al guardar (si ya existe una con ese nombre, se reutiliza) */
+        let newGradeId = '';
+        if (st.otherGrade) {
+          const same = grades.find(g => norm(g.name) === norm(newGrade));
+          if (same) newGradeId = same.id;
+          else {
+            const n = parseInt(newGrade, 10);                                  // 10° en adelante = Media
+            const order = Math.max(0, ...grades.map(g => g.order || 0)) + 1;
+            newGradeId = (await db.create('grades', {name: newGrade, level: n >= 10 ? 'media' : 'basica', order})).id;
+          }
+        }
+        gradeIds = [...new Set([...st.gradeIds, ...(newGradeId ? [newGradeId] : [])])];
+        subjectId = st.subjectId === NEW ? '' : $('#f-subject').value;
+        if (st.subjectId === NEW) {
+          const same = subjects.find(x => norm(x.name) === norm(newSubject));
+          subjectId = same ? same.id : (await db.create('subjects', {name: newSubject, color: '#0ea5e9', gradeIds: gradeIds.length ? gradeIds : undefined})).id;
+        }
+        let unitId = st.unitId === NEW ? '' : st.unitId;
+        if (st.unitId === NEW) {
+          const gradeId = (grades.find(g => st.gradeIds.has(g.id)) || {}).id || newGradeId;
+          const mine = (await unitsFor({subjectId, gradeId}));
+          const same = mine.find(x => norm(x.title) === norm(newUnit));
+          unitId = same ? same.id : (await db.create('units', {subjectId, gradeId, title: newUnit, order: mine.length + 1})).id;
+        }
+        scope = {libraryId: undefined, folderId: undefined, subjectId: subjectId || undefined, gradeIds,
+          unitId: unitId || undefined, topicIds: st.unitId === NEW ? [] : [...st.topicIds]};
       }
-      const gradeIds = [...new Set([...st.gradeIds, ...(newGradeId ? [newGradeId] : [])])];
-      let subjectId = st.subjectId === NEW ? '' : $('#f-subject').value;
-      if (st.subjectId === NEW) {
-        const same = subjects.find(x => norm(x.name) === norm(newSubject));
-        subjectId = same ? same.id : (await db.create('subjects', {name: newSubject, color: '#0ea5e9', gradeIds: gradeIds.length ? gradeIds : undefined})).id;
-      }
-      let unitId = st.unitId === NEW ? '' : st.unitId;
-      if (st.unitId === NEW) {
-        const gradeId = (grades.find(g => st.gradeIds.has(g.id)) || {}).id || newGradeId;
-        const mine = (await unitsFor({subjectId, gradeId}));
-        const same = mine.find(x => norm(x.title) === norm(newUnit));
-        unitId = same ? same.id : (await db.create('units', {subjectId, gradeId, title: newUnit, order: mine.length + 1})).id;
-      }
+
       const choice = dlg.querySelector('input[name=src]:checked').value;
       let source = r.source;
       let syncState = r.syncState || 'local-only';
@@ -218,11 +290,8 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
 
       const data = {
         title, type,
-        subjectId: subjectId || undefined,
-        gradeIds,
-        unitId: unitId || undefined,
+        ...scope,
         typeLabel: type === 'otro' ? ($('#f-typelabel').value.trim() || undefined) : undefined,
-        topicIds: st.unitId === NEW ? [] : [...st.topicIds],
         tags: $('#f-tags').value.split(',').map(s => s.trim()).filter(Boolean),
         notes: $('#f-notes').value.trim() || undefined,
         source, syncState,
@@ -230,10 +299,10 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
           ? {studentIds: r.pada?.studentIds || [], adjustmentType: $('#f-padj').value.trim(), baseResourceId: $('#f-pbase').value || undefined}
           : undefined,
       };
-      await ensureSubjectInGrades(subjectId, gradeIds);          // la materia debe verse en los grados del recurso
+      if (!libre) await ensureSubjectInGrades(subjectId, gradeIds);   // la materia debe verse en los grados del documento
       const saved = resource ? await db.update('resources', resource, data) : await db.create('resources', data);
       dlg.close();
-      toast('Recurso guardado');
+      toast('Documento guardado');
       onSaved && onSaved(saved);
     } catch (err) {
       console.error(err);

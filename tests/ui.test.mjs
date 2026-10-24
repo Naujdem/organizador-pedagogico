@@ -11,7 +11,7 @@ dom.window.HTMLDialogElement.prototype.close = function (v) { if (v !== undefine
 
 const R = new URL('../js/', import.meta.url).pathname;
 const db = await import(R + 'db.js'); const st = await import(R + 'store.js');
-await db.open(); await st.seedIfEmpty();
+await db.open(); await st.seedIfEmpty(); await st.seedLibraries();
 const [g7] = (await db.live('grades')).filter(g => g.name === '7°');
 const quim = (await db.live('subjects')).find(s => s.name === 'Química');
 const u = await db.create('units', {subjectId: quim.id, gradeId: g7.id, title: 'Mezclas', order: 1});
@@ -25,7 +25,9 @@ const change = (el, v) => { el.value = v; el.dispatchEvent(new dom.window.Event(
 
 // Inicio
 await (await import(R + 'views/inicio.js')).render(root);
-assert.match(root.innerHTML, /Recursos \(2\)/, 'inicio cuenta recursos');
+assert.equal(root.querySelectorAll('.lib:not(.new)').length, 4, 'inicio muestra las 4 bibliotecas');
+assert.match(root.querySelector('.lib[href="#/estructura"]').textContent, /Mis clases[\s\S]*2 documentos/, 'Mis clases cuenta sus documentos y abre la estructura');
+assert.match(root.innerHTML, /Reciente/, 'inicio muestra lo reciente');
 
 // Banco
 const banco = await import(R + 'views/banco.js');

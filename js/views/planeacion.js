@@ -38,7 +38,7 @@ export async function render(root) {
 async function newPlanning() {
   const [subjects, grades] = await Promise.all([db.live('subjects'), db.live('grades')]);
   grades.sort((a, b) => a.order - b.order);
-  if (!subjects.length || !grades.length) return toast('Primero crea materias y grados en Estructura.');
+  if (!subjects.length || !grades.length) return toast('Primero crea materias y grados en Mis clases (desde Inicio).');
   const st = {subjectId: subjects[0].id, gradeId: grades[0].id};
   const dlg = modal(`<form id="np"><h2>Nueva planeación</h2>
     <label for="n-s">Materia</label><select id="n-s">${options(subjects, st.subjectId)}</select>
@@ -49,7 +49,7 @@ async function newPlanning() {
   const $ = s => dlg.querySelector(s);
   async function fill() {
     const u = await unitsFor(st);
-    $('#n-u').innerHTML = u.length ? options(u.map(x => ({id: x.id, name: x.title}))) : '<option value="">(sin unidades: créalas en Estructura)</option>';
+    $('#n-u').innerHTML = u.length ? options(u.map(x => ({id: x.id, name: x.title}))) : '<option value="">(sin unidades: créalas en Mis clases)</option>';
   }
   $('#n-s').onchange = e => { st.subjectId = e.target.value; fill(); };
   $('#n-g').onchange = e => { st.gradeId = e.target.value; fill(); };
@@ -58,7 +58,7 @@ async function newPlanning() {
   $('#np').onsubmit = async e => {
     e.preventDefault();
     const unitId = $('#n-u').value;
-    if (!unitId) return toast('Elige una unidad (créala en Estructura).');
+    if (!unitId) return toast('Elige una unidad (créala en Mis clases).');
     const p = await db.create('plannings', {...st, unitId, periodName: $('#n-p').value.trim() || undefined, sessions: []});
     openId = p.id; dlg.close(); dispatchEvent(new Event('hashchange'));
   };

@@ -6,16 +6,17 @@
      fab?          → {label, onClick} acción del botón flotante «＋»
    ============================================================ */
 import * as db from './db.js';
-import {seedIfEmpty} from './store.js';
+import {seedIfEmpty, seedLibraries} from './store.js';
 import {$, $$, toast} from './ui.js';
 
 const ROUTES = {
   inicio:     () => import('./views/inicio.js'),
-  banco:      () => import('./views/banco.js'),
+  biblioteca: () => import('./views/biblioteca.js'),      // #/biblioteca/<id>: una biblioteca libre
+  banco:      () => import('./views/banco.js'),            // «Buscar»
   planeacion: () => import('./views/planeacion.js'),
   estructura: () => import('./views/estructura.js'),
   ajustes:    () => import('./views/ajustes.js'),
-  /* Módulos siguientes (aún sin construir) */
+  /* Módulos siguientes (aún sin construir; por ahora fuera del menú, se activan cuando existan) */
   guias:      () => import('./views/pronto.js').then(m => m.make('Generador de guías', 'Módulo 2: convierte recursos en guías PDF listas para fotocopiar.')),
   lab:        () => import('./views/pronto.js').then(m => m.make('Bitácora de laboratorio', 'Módulo 3: protocolos y registro de prácticas con fotos.')),
   notas:      () => import('./views/pronto.js').then(m => m.make('Notas con OCR', 'Módulo 4: digitaliza planillas manuscritas y expórtalas a Excel.')),
@@ -23,12 +24,15 @@ const ROUTES = {
 
 const view = $('#view'), fab = $('#fab');
 let current = 0;
+/* Pantallas que viven «dentro» de Inicio (bibliotecas y Mis clases) mantienen iluminado ese botón */
+const NAV_OF = {estructura: 'inicio', biblioteca: 'inicio'};
 
 async function go() {
   const name = (location.hash.replace(/^#\/?/, '').split('/')[0]) || 'inicio';
   const key = ROUTES[name] ? name : 'inicio';
   const token = ++current;
-  $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === key));
+  view.onclick = null;                       // el clic de la pantalla anterior no debe seguir activo en la nueva
+  $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === (NAV_OF[key] || key)));
   view.innerHTML = '<p class="hint">Cargando…</p>';
   try {
     const mod = await ROUTES[key]();
@@ -54,6 +58,7 @@ function netUI() {
 async function boot() {
   await db.open();
   await seedIfEmpty();
+  await seedLibraries();
   addEventListener('hashchange', go);
   addEventListener('online', netUI); addEventListener('offline', netUI);
   netUI();

@@ -87,7 +87,11 @@ main{padding:20px;min-width:0;outline:0;width:100%;max-width:64rem;margin:0 auto
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
 .chip{border:1px solid var(--line);border-radius:99px;padding:4px 12px;min-height:34px;font-size:.82rem;font-weight:500;background:var(--panel)}
 .chip.on{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
-.count{color:var(--mut);font-size:.85rem;margin:6px 0}
+.count{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--mut);font-size:.85rem;margin:6px 0}
+.chip .n{opacity:.7;font-weight:600;margin-left:2px}
+details.more{margin:6px 0}
+details.more>summary{cursor:pointer;color:var(--mut);font-size:.85rem;font-weight:500;padding:6px 0;min-height:36px;display:flex;align-items:center}
+details.more>summary:hover{color:var(--ink)}
 
 /* Tarjetas y listas: borde fino (ring) y sin sombras pesadas */
 .list{display:grid;gap:8px}
@@ -121,6 +125,29 @@ dialog.modal h2{font-size:1.15rem}
 
 #toast{position:fixed;left:50%;bottom:96px;transform:translate(-50%,20px);background:#0f172a;color:#f8fafc;padding:10px 16px;border-radius:var(--radius-sm);font-size:.9rem;opacity:0;pointer-events:none;transition:.2s;z-index:50;max-width:90vw}
 #toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* Bibliotecas (Inicio) y su pantalla: tarjetas con icono de color, como en SimulaPro */
+.libs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.lib{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:16px;min-height:118px;border-radius:var(--radius);background:var(--panel);box-shadow:0 0 0 1px var(--ring);color:var(--ink);text-decoration:none;transition:box-shadow .15s,transform .1s}
+.lib:hover{box-shadow:0 0 0 2px var(--c,var(--acc))}
+.lib:active{transform:scale(.98)}
+.lib .ico,.libico{flex:none;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:1.4rem;background:color-mix(in srgb,var(--c,var(--acc)) 16%,transparent)}
+.lib b{font-size:.95rem;font-weight:600;overflow-wrap:anywhere;margin-top:4px}
+.lib .n{color:var(--mut);font-size:.8rem;font-weight:400}
+.lib.new{align-items:center;justify-content:center;gap:2px;text-align:center;border:1px dashed var(--line);box-shadow:none;background:transparent;color:var(--mut);font-size:.9rem;font-weight:600}
+.lib.new:hover{background:var(--hover);color:var(--ink);box-shadow:none}
+.lib.new span{font-size:1.6rem;line-height:1}
+.libhead{display:flex;align-items:center;gap:10px;margin:2px 0 14px}
+.libhead h2{margin:0;flex:1;min-width:0;overflow-wrap:anywhere}
+.libhead button.ghost{padding:8px 10px;min-width:40px}
+.back{display:inline-block;color:var(--mut);text-decoration:none;font-size:.85rem;font-weight:500;padding:6px 0;min-height:32px}
+.back:hover{color:var(--ink)}
+.swatches{display:flex;gap:12px;flex-wrap:wrap;padding:4px 2px}
+label.swatch{position:relative;margin:0;cursor:pointer;display:block}
+.swatch input{position:absolute;inset:0;width:100%;height:100%;min-height:0;padding:0;margin:0;opacity:0;cursor:pointer}
+.swatch span{display:block;width:32px;height:32px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px var(--panel),0 0 0 3px var(--line)}
+.swatch input:checked+span{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--c)}
+.swatch input:focus-visible+span{outline:3px solid var(--focus);outline-offset:3px}
 
 .split{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
 .card{background:var(--panel);border-radius:var(--radius);padding:16px;box-shadow:0 0 0 1px var(--ring)}

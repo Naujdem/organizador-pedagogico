@@ -9,7 +9,7 @@
 import * as db from './db.js';
 import {mergeDuplicates} from './dedupe.js';
 
-export const SYNC_STORES = ['grades', 'subjects', 'units', 'topics', 'resources', 'plannings', 'courses'];
+export const SYNC_STORES = ['grades', 'subjects', 'units', 'topics', 'resources', 'plannings', 'courses', 'libraries', 'folders'];
 const CHUNK = 200, PAGE = 1000;
 
 /* Sube lo pendiente y baja lo nuevo. sb = cliente Supabase, userId = auth.uid() */
