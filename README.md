@@ -1,7 +1,15 @@
 # Organizador Pedagógico (PWA)
 
 App web instalable, offline-first y sin suscripciones para docentes de ciencias.
-**Estado:** Módulo 1 (Planeación y Recursos) funcional. Módulos 2–4 son marcadores de posición.
+**Estado:** Módulo 1 (Bibliotecas, Planeación y Recursos) funcional. Módulos 2–4 son marcadores de posición (sus rutas existen pero están fuera del menú hasta que se construyan).
+
+## Cómo está organizada
+- **Inicio** = clases de hoy (si hay) + **bibliotecas** (tarjetas con icono, color y cantidad de documentos) + lo reciente.
+- **Mis clases** es la biblioteca de siempre: Grado → Materia → Unidad → Tema (pantalla `estructura.js`).
+- **Maestría, Estudio, Personal** (y las que crees) son bibliotecas libres: carpetas de un nivel → documentos (`biblioteca.js`).
+- **Buscar** encuentra documentos de todas las bibliotecas; los filtros finos están en «Más filtros».
+- Un documento sin `libraryId` pertenece a «Mis clases» (así lo anterior a las bibliotecas no se migró).
+- Menú: Inicio · Buscar · Planeación · Ajustes.
 
 Sin build ni dependencias de ejecución: HTML + ES modules + IndexedDB, como la app de referencia (Biotaxo dex).
 
@@ -17,11 +25,11 @@ Para publicarla gratis: GitHub Pages, Netlify o Cloudflare Pages (cualquier host
 index.html            cascarón + navegación (barra inferior en móvil, lateral en escritorio)
 sw.js                 service worker: precarga la app y funciona sin internet
 manifest.webmanifest  instalación como app
-js/db.js              IndexedDB: CRUD, índices multi-entrada, borrado lógico, cola de sync, respaldo
-js/store.js           filtrado matricial (grado·materia·unidad·tema·tipo·texto) y siembra inicial
+js/db.js              IndexedDB (v2): CRUD, índices multi-entrada, borrado lógico, cola de sync, respaldo
+js/store.js           bibliotecas y carpetas, filtrado matricial (biblioteca·carpeta·grado·materia·unidad·tema·tipo·texto) y siembra inicial
 js/drive.js           Google Drive personal (scope drive.file, tu propio Client ID)
 js/app.js             arranque y router por hash
-js/views/             banco, recurso-form, estructura, planeacion, inicio, ajustes, pronto
+js/views/             inicio, biblioteca, banco («Buscar»), recurso-form, estructura («Mis clases»), planeacion, ajustes, pronto
 tests/                pruebas de datos/filtros y de humo de la interfaz
 ```
 

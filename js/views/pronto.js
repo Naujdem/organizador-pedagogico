@@ -5,7 +5,7 @@ export function make(title, text) {
   return {
     render(root) {
       root.innerHTML = `<h2>${esc(title)}</h2><div class="empty">${esc(text)}<br><br>
-        <span class="hint">Próximamente. Mientras tanto, usa Recursos y Planeación.</span></div>`;
+        <span class="hint">Próximamente. Mientras tanto, usa tus bibliotecas y la Planeación.</span></div>`;
     },
   };
 }

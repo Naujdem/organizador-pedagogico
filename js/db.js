@@ -14,11 +14,13 @@
 import {ulid} from './ulid.js';
 
 const DB_NAME = 'organizador-pedagogico';
-const DB_VERSION = 1;
+const DB_VERSION = 2;   // v2: bibliotecas y carpetas (los almacenes anteriores no cambian)
 
 /* Almacén → {opciones, índices}. '*' al inicio = multiEntry (arreglos). */
 const SCHEMA = {
   profile:   {idx: []},
+  libraries: {idx: ['order']},                // bibliotecas: Mis clases, Maestría, Estudio, Personal…
+  folders:   {idx: ['libraryId']},            // carpetas de un nivel dentro de una biblioteca
   grades:    {idx: ['order']},
   subjects:  {idx: []},
   units:     {idx: ['subjectId', 'gradeId', 'periodId', '[subjectId+gradeId]']},
@@ -55,7 +57,11 @@ export function open() {
       if (!d.objectStoreNames.contains('syncQueue'))
         d.createObjectStore('syncQueue', {keyPath: 'seq', autoIncrement: true});
     };
-    r.onsuccess = () => ok(r.result);
+    r.onsuccess = () => {
+      /* Si otra pestaña con la versión nueva necesita actualizar el esquema, esta se aparta */
+      r.result.onversionchange = () => { r.result.close(); dbP = null; };
+      ok(r.result);
+    };
     r.onerror = () => ko(r.error);
   });
   return dbP;

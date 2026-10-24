@@ -1,6 +1,6 @@
 /* ============================================================
-   estructura.js · Estructura académica (el «eje» de la matriz)
-   Se navega de arriba hacia abajo:
+   estructura.js · «Mis clases»: la estructura académica (el «eje» de la matriz)
+   Es lo que se abre desde la biblioteca «Mis clases» en Inicio. Se navega de arriba hacia abajo:
      Grados → Materias → Unidades y temas → Recursos del tema (por tipo)
    Todo se puede agregar, editar y eliminar en su nivel.
    ============================================================ */
@@ -89,7 +89,7 @@ export async function render(root) {
   else if (!subject) Object.assign(nav, {subjectId: '', topicId: ''});
   else if (!topic) nav.topicId = '';
 
-  const crumbs = [`<button class="ghost" data-act="go" data-lv="0">🧭 Estructura</button>`];
+  const crumbs = [`<button class="ghost" data-act="go" data-lv="0">🏫 Mis clases</button>`];
   if (grade) crumbs.push(`<button class="ghost" data-act="go" data-lv="1">${esc(grade.name)}</button>`);
   if (subject) crumbs.push(`<button class="ghost" data-act="go" data-lv="2">${esc(subject.name)}</button>`);
   if (topic) crumbs.push(`<b>${esc(topic.title)}</b>`);
@@ -100,7 +100,8 @@ export async function render(root) {
   else if (!topic) body = await levelUnits(grade, subject);
   else body = await levelTopic(grade, subject, topic);
 
-  root.innerHTML = `<h2>Estructura académica</h2>
+  root.innerHTML = `<a class="back" href="#/inicio">← Inicio</a>
+    <h2>Mis clases</h2>
     <p class="crumbs" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">${crumbs.join(' <span class="hint">›</span> ')}</p>${body}`;
   const again = () => render(root);
 
@@ -285,7 +286,7 @@ async function levelUnits(grade, subject) {
   return `<h3>${esc(subject.name)} · ${esc(grade.name)}</h3>
     ${cards.join('') || '<div class="empty">Esta materia y grado aún no tienen unidades.</div>'}
     <div class="btns"><button class="primary" data-act="add-unit">＋ Unidad</button></div>
-    ${loose ? `<p class="hint">${loose} recurso${loose === 1 ? '' : 's'} de esta materia y grado no tiene${loose === 1 ? '' : 'n'} tema. <a href="#/banco">Verlos en Recursos</a></p>` : ''}`;
+    ${loose ? `<p class="hint">${loose} recurso${loose === 1 ? '' : 's'} de esta materia y grado no tiene${loose === 1 ? '' : 'n'} tema. <a href="#/banco">Verlos en Buscar</a></p>` : ''}`;
 }
 
 /* ---------- Nivel 4: recursos del tema, por tipo ---------- */
