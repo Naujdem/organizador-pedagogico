@@ -102,7 +102,7 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
         <label for="f-prev">PDF para visualizar <span class="hint">(opcional)</span></label>
         <input id="f-prev" type="file" accept="application/pdf,.pdf">
         <p class="hint">Las presentaciones no se pueden ver dentro de la app. Guarda tu PowerPoint también como PDF y súbelo aquí:
-          el PDF se verá en el visor y el .pptx queda para descargarlo y editarlo.${r.source?.previewBlobId
+          el PDF se verá en el visor y el .pptx queda para descargarlo y editarlo (con «Guardar también en mi Google Drive» se suben los dos).${r.source?.previewBlobId
             ? ` <br>PDF actual: ${esc(r.source.previewName || 'adjunto')}. Elige otro solo si quieres reemplazarlo.` : ''}</p>
       </div>
       <label class="chk"><input type="checkbox" id="f-drive"${canDrive ? ' checked' : ' disabled'}> Guardar también en mi Google Drive
@@ -297,10 +297,17 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
             } catch (err) { toast('Guardado aquí; no se pudo subir a Drive: ' + err.message, 5000); }
           }
         }
-        const prev = $('#f-prev').files[0];   // PDF «para ver» (p. ej. de un PowerPoint); queda solo en este dispositivo
-        if (prev && source && (source.kind === 'local' || source.kind === 'drive'))
-          source = {...source, previewBlobId: await db.saveBlob(prev), previewName: prev.name};
-        else if (prev) toast('Elige primero el archivo principal; el PDF no se guardó.', 4500);
+        const prev = $('#f-prev').files[0];   // PDF «para ver» (p. ej. de un PowerPoint): copia local y, si se pidió, también en Drive
+        if (prev && source && (source.kind === 'local' || source.kind === 'drive')) {
+          source = {...source, previewBlobId: await db.saveBlob(prev), previewName: prev.name,
+            previewFileId: undefined, previewWebViewLink: undefined};
+          if ($('#f-drive').checked && canDrive) {
+            try {
+              const up = await driveUpload(prev, prev.name);
+              source = {...source, previewFileId: up.fileId, previewWebViewLink: up.webViewLink};
+            } catch (err) { toast('PDF guardado aquí; no se pudo subir a Drive: ' + err.message, 5000); }
+          }
+        } else if (prev) toast('Elige primero el archivo principal; el PDF no se guardó.', 4500);
       }
 
       const data = {

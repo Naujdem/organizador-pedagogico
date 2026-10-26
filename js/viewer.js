@@ -5,6 +5,7 @@
      · Word (.docx) → docx-preview;  Excel (.xlsx) → lector propio (js/xlsx-view.js). Ambos locales, sin internet.
      · PowerPoint → se ve el PDF «para ver» que se adjunta al documento (source.previewBlobId);
        el botón «Descargar» baja el .pptx original para editarlo.
+       El PDF también se sube a Drive si se pidió (previewFileId / previewWebViewLink).
    Lo que no se puede previsualizar ofrece «Descargar» y no baja nada hasta que se toque.
    Los enlaces externos y los archivos solo en Drive se abren en una pestaña nueva.
    ============================================================ */
@@ -121,6 +122,7 @@ export async function openSource(r) {
     return openViewer(r.title, {blob: preview, name: pn.toLowerCase().endsWith('.pdf') ? pn : pn + '.pdf'},
       main ? {blob: main, name, label: isPresentation(name) ? 'Descargar .pptx (editar)' : 'Descargar original'} : null);
   }
+  if (s.previewWebViewLink) return window.open(s.previewWebViewLink, '_blank', 'noopener');   // el PDF solo está en Drive
   if (main) return openViewer(r.title, {blob: main, name}, {blob: main, name, label: 'Descargar'});
   if (s.kind === 'drive' && s.webViewLink) return window.open(s.webViewLink, '_blank', 'noopener');
   toast('El archivo no está disponible en este dispositivo.');
