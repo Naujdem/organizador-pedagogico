@@ -83,18 +83,20 @@ export async function render(root) {
   cur.libraryId = lib.id; cur.folderId = folderSel;
   const folder = folders.find(f => f.id === folderSel);
 
-  const chip = (v, label, n) => `<button class="chip${folderSel === v ? ' on' : ''}" data-f="${esc(v)}">${label} <span class="n">${n}</span></button>`;
+  /* Carpetas como mosaico: «Todos», «Sin carpeta», cada carpeta y «＋ Carpeta» */
+  const tile = (v, icon, label, n) => `<button class="ftile${folderSel === v ? ' on' : ''}" data-f="${esc(v)}" aria-pressed="${folderSel === v}">
+    <span class="fic">${icon}</span><span class="fname">${label}</span><span class="n">${plural(n, 'documento', 'documentos')}</span></button>`;
   root.innerHTML = `
     <a class="back" href="#/inicio">← Inicio</a>
     <div class="libhead"><span class="libico" style="--c:${esc(lib.color || '#0284c7')}">${lib.icon || '📁'}</span><h2>${esc(lib.name)}</h2>
       <button class="ghost" data-act="edit-lib" aria-label="Editar biblioteca">✎</button>
       <button class="ghost" data-act="del-lib" aria-label="Eliminar biblioteca">🗑</button></div>
     <div class="search"><input id="q" type="search" placeholder="Buscar en ${esc(lib.name)}…" value="${esc(text)}" aria-label="Buscar en ${esc(lib.name)}"></div>
-    <div class="chips" id="folders" role="group" aria-label="Carpetas">
-      ${chip('', 'Todos', counts.all)}
-      ${folders.length && counts.none ? chip(NO_FOLDER, 'Sin carpeta', counts.none) : ''}
-      ${folders.map(f => chip(f.id, esc(f.name), counts[f.id])).join('')}
-      <button class="chip" data-act="add-folder">＋ Carpeta</button>
+    <div class="ftiles" id="folders" role="group" aria-label="Carpetas">
+      ${tile('', '🗂️', 'Todos', counts.all)}
+      ${folders.length && counts.none ? tile(NO_FOLDER, '📄', 'Sin carpeta', counts.none) : ''}
+      ${folders.map(f => tile(f.id, folderSel === f.id ? '📂' : '📁', esc(f.name), counts[f.id])).join('')}
+      <button class="ftile new" data-act="add-folder"><span class="fic">＋</span><span class="fname">Carpeta</span></button>
     </div>
     ${folder ? `<div class="btns" style="margin-top:0"><button class="ghost" data-act="edit-folder">✎ Renombrar carpeta</button>
       <button class="ghost" data-act="del-folder">🗑 Eliminar carpeta</button></div>` : ''}

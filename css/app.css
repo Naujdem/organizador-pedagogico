@@ -206,3 +206,16 @@ dialog.modal.viewer-dlg{width:min(980px,98vw);height:92vh;max-height:92vh;paddin
 .list.tiles .row>button.ghost{padding:4px 8px;min-height:34px;align-self:flex-start}
 .list.tiles .row:has(>button.ghost){flex-direction:row;flex-wrap:wrap}
 .list.tiles .row:has(>button.ghost) .body{flex:1 1 100%}
+
+/* Carpetas en mosaico (biblioteca) */
+.ftiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:10px 0}
+.ftile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px;min-height:104px;border:0;border-radius:var(--radius);background:var(--panel);box-shadow:0 0 0 1px var(--ring);color:var(--ink);text-align:left;font-weight:400;transition:box-shadow .15s,transform .1s}
+.ftile:hover{box-shadow:0 0 0 2px var(--acc);background:var(--panel)}
+.ftile:active{transform:scale(.98)}
+.ftile.on{box-shadow:0 0 0 2px var(--acc);background:var(--soft)}
+.ftile .fic{font-size:1.6rem;line-height:1;margin-bottom:4px}
+.ftile .fname{font-weight:600;font-size:.92rem;overflow-wrap:anywhere}
+.ftile .n{color:var(--mut);font-size:.78rem;margin-left:0;opacity:1}
+.ftile.new{align-items:center;justify-content:center;text-align:center;border:1px dashed var(--line);box-shadow:none;background:transparent;color:var(--mut)}
+.ftile.new:hover{background:var(--hover);color:var(--ink);box-shadow:none}
+.ftile.new .fic{margin:0}
