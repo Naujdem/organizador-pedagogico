@@ -11,6 +11,7 @@ import {ALL_TYPES, TYPE_LABEL, typesForKind, CLASES_ID, NO_FOLDER, libraryIdOf, 
 import {esc, options, modal, toast, confirmDlg, listAttrs, viewToggle} from '../ui.js';
 import {openResourceForm} from './recurso-form.js';
 import {openSource} from '../viewer.js';
+import {moveDialog, canMove} from './mover.js';
 
 /* Se conservan al navegar a otra sección y volver */
 const F = {libraryId: '', folderId: '', gradeId: '', subjectId: '', unitId: '', topicId: '', type: '', text: ''};
@@ -183,12 +184,14 @@ export async function showDetail(r, refresh) {
     <div class="btns">
       ${r.source ? '<button class="primary" id="d-open">Abrir</button>' : ''}
       <button id="d-edit">Editar</button>
+      ${canMove(r) ? '<button id="d-move">Mover</button>' : ''}
       <button id="d-del" class="danger">Eliminar</button>
       <button id="d-close">Cerrar</button>
     </div>`);
   const $ = s => dlg.querySelector(s);
   $('#d-close').onclick = () => dlg.close();
   $('#d-edit').onclick = () => { dlg.close(); openResourceForm({resource: r, onSaved: refresh}); };
+  if ($('#d-move')) $('#d-move').onclick = () => { dlg.close(); moveDialog(r, refresh); };
   $('#d-del').onclick = async () => {
     if (await confirmDlg(`¿Eliminar «${r.title}»?`)) { await db.remove('resources', r); dlg.close(); toast('Documento eliminado'); refresh && refresh(); }
   };

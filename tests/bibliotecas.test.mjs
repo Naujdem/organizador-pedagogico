@@ -105,7 +105,43 @@ assert.match(card('#/estructura').textContent, /Mis clases[\s\S]*1 documento\b/)
 assert.match(card('#/biblioteca/seed-lib-maestria').textContent, /Maestría[\s\S]*3 documentos/);
 assert.match(card('#/biblioteca/seed-lib-personal').textContent, /Personal[\s\S]*0 documentos/);
 assert.ok(root.querySelector('#newlib'), 'hay botón para crear biblioteca');
-assert.match(root.innerHTML, /Reciente/);
+assert.doesNotMatch(root.innerHTML, /Reciente/, 'Inicio ya no muestra «Reciente»');
+
+/* Buscador de Inicio: los resultados reemplazan a las bibliotecas y se limpian al borrar */
+const hq = root.querySelector('#hq');
+hq.value = 'freire'; hq.dispatchEvent(new dom.window.Event('input', {bubbles: true})); await new Promise(r => setTimeout(r, 250));
+assert.ok(root.querySelector('#home').hidden, 'al buscar se ocultan las bibliotecas');
+assert.equal(root.querySelectorAll('#results .row').length, 1, 'Inicio busca en todas las bibliotecas');
+assert.match(root.querySelector('#results').textContent, /Maestría/, 'cada resultado dice en qué biblioteca está');
+hq.value = 'zzzz-no-existe'; hq.dispatchEvent(new dom.window.Event('input', {bubbles: true})); await new Promise(r => setTimeout(r, 250));
+assert.match(root.querySelector('#results').textContent, /Ningún documento coincide/);
+hq.value = ''; hq.dispatchEvent(new dom.window.Event('input', {bubbles: true})); await new Promise(r => setTimeout(r, 250));
+assert.ok(!root.querySelector('#home').hidden && root.querySelector('#results').innerHTML === '', 'sin texto vuelven las bibliotecas');
+
+/* Mover un documento: a otra carpeta, a una carpeta nueva y a otra biblioteca */
+const mover = await import(R + 'views/mover.js');
+const [mdoc] = await st.filterResources({libraryId: 'seed-lib-maestria', text: 'freire'});
+assert.ok(mover.canMove(mdoc), 'un documento de una biblioteca libre se puede mover');
+assert.ok(!mover.canMove(legacy), 'uno de Mis clases no (se edita por grado/materia)');
+await mover.moveDialog(mdoc);
+d = lastDialog();
+assert.ok(d.querySelector('#mv-l').value === 'seed-lib-maestria' && d.querySelector('#mv-f').value === sem.id, 'abre en su ubicación actual');
+change(d.querySelector('#mv-f'), '');
+submit(d.querySelector('#mv')); await tick(); await tick();
+assert.equal((await db.get('resources', mdoc.id)).folderId, undefined, 'movido a «sin carpeta»');
+await mover.moveDialog(await db.get('resources', mdoc.id));
+d = lastDialog(); change(d.querySelector('#mv-f'), '__new'); d.querySelector('#mv-n').value = 'Lecturas críticas';
+submit(d.querySelector('#mv')); await tick(); await tick();
+const lc = (await st.foldersFor('seed-lib-maestria')).find(f => f.name === 'Lecturas críticas');
+assert.ok(lc && (await db.get('resources', mdoc.id)).folderId === lc.id, 'carpeta nueva creada y documento dentro');
+await mover.moveDialog(await db.get('resources', mdoc.id));
+d = lastDialog(); change(d.querySelector('#mv-l'), 'seed-lib-estudio'); await tick();
+assert.equal(d.querySelector('#mv-f').value, '', 'al cambiar de biblioteca la carpeta vuelve a «sin carpeta»');
+submit(d.querySelector('#mv')); await tick(); await tick();
+const mv3 = await db.get('resources', mdoc.id);
+assert.ok(mv3.libraryId === 'seed-lib-estudio' && !mv3.folderId, 'movido a otra biblioteca');
+await db.update('resources', mv3, {libraryId: 'seed-lib-maestria', folderId: sem.id});   // se deja como estaba para las pruebas siguientes
+await st.removeFolder(lc);
 
 /* Crear una biblioteca nueva desde Inicio */
 root.querySelector('#newlib').click(); await tick();

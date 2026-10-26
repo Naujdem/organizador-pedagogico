@@ -27,7 +27,8 @@ const change = (el, v) => { el.value = v; el.dispatchEvent(new dom.window.Event(
 await (await import(R + 'views/inicio.js')).render(root);
 assert.equal(root.querySelectorAll('.lib:not(.new)').length, 4, 'inicio muestra las 4 bibliotecas');
 assert.match(root.querySelector('.lib[href="#/estructura"]').textContent, /Mis clases[\s\S]*2 documentos/, 'Mis clases cuenta sus documentos y abre la estructura');
-assert.match(root.innerHTML, /Reciente/, 'inicio muestra lo reciente');
+assert.doesNotMatch(root.innerHTML, /Reciente/, 'inicio ya no muestra lo reciente');
+assert.ok(root.querySelector('#hq'), 'inicio tiene buscador');
 
 // Banco
 const banco = await import(R + 'views/banco.js');
