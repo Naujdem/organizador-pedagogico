@@ -184,3 +184,10 @@ dialog.modal.viewer-dlg{width:min(980px,98vw);height:92vh;max-height:92vh;paddin
 .viewer-img{max-width:100%;max-height:100%;object-fit:contain}
 .viewer-media{width:100%;max-height:100%}
 .viewer-text{align-self:flex-start;width:100%;margin:0;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:.9rem}
+.viewer-docx{width:100%;height:100%;overflow:auto}
+.viewer-docx .docx-wrapper{background:transparent!important;padding:8px!important}
+.viewer-docx .docx-wrapper>section.docx{color:#000;background:#fff;box-shadow:0 0 0 1px var(--ring);margin-bottom:10px!important}
+.viewer-xlsx{width:100%;height:100%;align-self:flex-start;display:flex;flex-direction:column;padding:8px;min-width:0}
+.viewer-xlsx .xwrap{overflow:auto;flex:1;min-height:0}
+.viewer-xlsx table{border-collapse:collapse;font-size:.82rem;background:var(--panel)}
+.viewer-xlsx td{border:1px solid var(--line);padding:3px 8px;white-space:pre-wrap;max-width:280px;vertical-align:top}

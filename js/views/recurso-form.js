@@ -11,6 +11,7 @@ import {unitsFor, topicsFor, norm, ensureSubjectInGrades, typesForKind, TYPE_LAB
   librariesList, foldersFor} from '../store.js';
 import {driveLinked, driveUpload} from '../drive.js';
 import {esc, options, modal, toast} from '../ui.js';
+import {isPresentation} from '../viewer.js';
 
 const NEW = '__new';   // valor de «＋ Otra materia / unidad / carpeta…»
 
@@ -97,6 +98,13 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
       <input id="f-file" type="file">
       ${r.source && (r.source.kind === 'local' || r.source.kind === 'drive')
         ? `<p class="hint">Archivo actual conservado. Elige otro solo si quieres reemplazarlo.</p>` : ''}
+      <div id="src-prev" hidden>
+        <label for="f-prev">PDF para visualizar <span class="hint">(opcional)</span></label>
+        <input id="f-prev" type="file" accept="application/pdf,.pdf">
+        <p class="hint">Las presentaciones no se pueden ver dentro de la app. Guarda tu PowerPoint también como PDF y súbelo aquí:
+          el PDF se verá en el visor y el .pptx queda para descargarlo y editarlo.${r.source?.previewBlobId
+            ? ` <br>PDF actual: ${esc(r.source.previewName || 'adjunto')}. Elige otro solo si quieres reemplazarlo.` : ''}</p>
+      </div>
       <label class="chk"><input type="checkbox" id="f-drive"${canDrive ? ' checked' : ' disabled'}> Guardar también en mi Google Drive
         ${canDrive ? '<span class="hint">(se sube sola)</span>' : '<span class="hint">(conecta Drive en Ajustes)</span>'}</label>
     </div>
@@ -167,6 +175,8 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
   function toggleSrc() {
     const v = dlg.querySelector('input[name=src]:checked').value;
     $('#src-link').hidden = v !== 'link'; $('#src-file').hidden = v !== 'local';
+    const fname = $('#f-file').files[0]?.name || (r.source?.kind === 'link' ? '' : r.source?.name) || '';
+    $('#src-prev').hidden = v !== 'local' || !isPresentation(fname);
   }
 
   $('#f-lib').onchange = e => { st.libraryId = e.target.value; st.folderId = ''; applyLibrary(); };
@@ -198,6 +208,7 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
   $('#f-topics').onchange = e => { e.target.checked ? st.topicIds.add(e.target.value) : st.topicIds.delete(e.target.value); };
   $('#f-type').onchange = togglePada;
   dlg.querySelectorAll('input[name=src]').forEach(i => i.onchange = toggleSrc);
+  $('#f-file').onchange = toggleSrc;
   $('#f-cancel').onclick = () => dlg.close();
   toggleSrc(); await fillUnits(); await applyLibrary();
 
@@ -286,6 +297,10 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
             } catch (err) { toast('Guardado aquí; no se pudo subir a Drive: ' + err.message, 5000); }
           }
         }
+        const prev = $('#f-prev').files[0];   // PDF «para ver» (p. ej. de un PowerPoint); queda solo en este dispositivo
+        if (prev && source && (source.kind === 'local' || source.kind === 'drive'))
+          source = {...source, previewBlobId: await db.saveBlob(prev), previewName: prev.name};
+        else if (prev) toast('Elige primero el archivo principal; el PDF no se guardó.', 4500);
       }
 
       const data = {
