@@ -9,6 +9,7 @@ import {RESOURCE_TYPES, TYPE_LABEL, unitsFor, topicsFor, cascadeDeleteUnit, filt
   subjectsForGrade, addSubjectToGrade, removeSubjectFromGrade} from '../store.js';
 import {esc, modal, toast, confirmDlg} from '../ui.js';
 import {openResourceForm} from './recurso-form.js';
+import {openSource} from '../viewer.js';
 
 /* Diálogo simple de uno o varios campos de texto → promesa con los valores (o null) */
 function ask(title, fields) {
@@ -64,18 +65,6 @@ async function cascadeDeleteTopic(topic) {
   for (const r of await db.byIndex('resources', 'topicIds', topic.id))
     if (!r.deletedAt) await db.update('resources', r, {topicIds: (r.topicIds || []).filter(i => i !== topic.id)});
   await db.remove('topics', topic);
-}
-
-async function openSource(r) {
-  const s = r.source;
-  if (!s) return;
-  if (s.kind === 'link') return window.open(s.url, '_blank', 'noopener');
-  if (s.blobId) {
-    const blob = await db.getBlob(s.blobId);
-    if (blob) return window.open(URL.createObjectURL(blob), '_blank');
-  }
-  if (s.kind === 'drive' && s.webViewLink) return window.open(s.webViewLink, '_blank', 'noopener');
-  toast('El archivo no está disponible en este dispositivo.');
 }
 
 export async function render(root) {

@@ -10,6 +10,7 @@ import {ALL_TYPES, TYPE_LABEL, typesForKind, CLASES_ID, NO_FOLDER, libraryIdOf, 
   filterResources, unitsFor, topicsFor, nameMap} from '../store.js';
 import {esc, options, modal, toast, confirmDlg} from '../ui.js';
 import {openResourceForm} from './recurso-form.js';
+import {openSource} from '../viewer.js';
 
 /* Se conservan al navegar a otra sección y volver */
 const F = {libraryId: '', folderId: '', gradeId: '', subjectId: '', unitId: '', topicId: '', type: '', text: ''};
@@ -192,16 +193,4 @@ export async function showDetail(r, refresh) {
     if (await confirmDlg(`¿Eliminar «${r.title}»?`)) { await db.remove('resources', r); dlg.close(); toast('Documento eliminado'); refresh && refresh(); }
   };
   if ($('#d-open')) $('#d-open').onclick = () => openSource(r);
-}
-
-async function openSource(r) {
-  const s = r.source;
-  if (s.kind === 'link') return window.open(s.url, '_blank', 'noopener');
-  /* Copia local primero (funciona sin internet); si no hay, Drive */
-  if (s.blobId) {
-    const blob = await db.getBlob(s.blobId);
-    if (blob) return window.open(URL.createObjectURL(blob), '_blank');
-  }
-  if (s.kind === 'drive' && s.webViewLink) return window.open(s.webViewLink, '_blank', 'noopener');
-  toast('El archivo no está disponible en este dispositivo.');
 }

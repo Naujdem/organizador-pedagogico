@@ -3,10 +3,10 @@
    - Mismo origen: red primero (así siempre ves la versión nueva) y caché si no hay conexión.
    - Google (Drive/Identity) nunca se cachea: pasa directo a la red.
    Al cambiar archivos de la app, sube el número de CACHE. */
-const CACHE = 'organizador-v16';
+const CACHE = 'organizador-v17';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
-  './js/app.js', './js/db.js', './js/ulid.js', './js/store.js', './js/ui.js', './js/drive.js',
+  './js/app.js', './js/db.js', './js/ulid.js', './js/store.js', './js/ui.js', './js/viewer.js', './js/drive.js',
   './js/config.js', './js/cloud.js', './js/sync.js', './js/dedupe.js', './js/login.js',
   './js/views/banco.js', './js/views/biblioteca.js', './js/views/recurso-form.js', './js/views/estructura.js',
   './js/views/planeacion.js', './js/views/ajustes.js', './js/views/inicio.js', './js/views/pronto.js',
