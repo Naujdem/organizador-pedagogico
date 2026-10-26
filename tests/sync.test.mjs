@@ -46,10 +46,10 @@ await db.open();
 await st.seedIfEmpty();
 const cloud = fakeCloud();
 
-/* 1) Primera sincronización: sube todo lo existente (6 grados + 4 materias) */
+/* 1) Primera sincronización: sube todo lo existente (11 grados + 4 materias) */
 let r = await syncWith(cloud, 'user-A');
-assert.equal(r.pushed, 10, 'sube la siembra inicial');
-assert.equal(cloud.rows.size, 10);
+assert.equal(r.pushed, 15, 'sube la siembra inicial');
+assert.equal(cloud.rows.size, 15);
 assert.equal((await db.all('syncQueue')).length, 0, 'la cola queda vacía');
 
 /* 2) Un cambio local se sube; se ve el borrado lógico */

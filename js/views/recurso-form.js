@@ -8,7 +8,7 @@
    ============================================================ */
 import * as db from '../db.js';
 import {unitsFor, topicsFor, norm, ensureSubjectInGrades, typesForKind, TYPE_LABEL, CLASES_ID, NO_FOLDER,
-  librariesList, foldersFor} from '../store.js';
+  librariesList, foldersFor, sortGrades, levelForName} from '../store.js';
 import {driveLinked, driveUpload} from '../drive.js';
 import {esc, options, modal, toast} from '../ui.js';
 import {isPresentation} from '../viewer.js';
@@ -17,7 +17,7 @@ const NEW = '__new';   // valor de «＋ Otra materia / unidad / carpeta…»
 
 export async function openResourceForm({resource, defaults = {}, onSaved} = {}) {
   const [grades, subjects, allRes, libs] = await Promise.all([db.live('grades'), db.live('subjects'), db.live('resources'), librariesList()]);
-  grades.sort((a, b) => a.order - b.order);
+  sortGrades(grades);
   const kindOf = id => libs.find(l => l.id === id)?.kind || (id === CLASES_ID ? 'clases' : 'libre');
   const r = resource || {};
   const st = {
@@ -252,9 +252,9 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
           const same = grades.find(g => norm(g.name) === norm(newGrade));
           if (same) newGradeId = same.id;
           else {
-            const n = parseInt(newGrade, 10);                                  // 10° en adelante = Media
+            // nivel según el número: 1°–5° Primaria, 6°–9° Básica, 10° en adelante Media
             const order = Math.max(0, ...grades.map(g => g.order || 0)) + 1;
-            newGradeId = (await db.create('grades', {name: newGrade, level: n >= 10 ? 'media' : 'basica', order})).id;
+            newGradeId = (await db.create('grades', {name: newGrade, level: levelForName(newGrade), order})).id;
           }
         }
         gradeIds = [...new Set([...st.gradeIds, ...(newGradeId ? [newGradeId] : [])])];

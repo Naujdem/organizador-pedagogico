@@ -9,7 +9,8 @@ await db.open();
 await st.seedIfEmpty();
 await st.seedIfEmpty();                                   // idempotente
 const grades = await db.live('grades'), subjects = await db.live('subjects');
-assert.equal(grades.length, 6, 'siembra 6 grados una sola vez');
+assert.equal(grades.length, 11, 'siembra 11 grados (1°–11°) una sola vez');
+assert.deepEqual(st.sortGrades([...grades]).slice(0, 5).map(g => g.level), Array(5).fill('primaria'), '1°–5° son Primaria y salen primero');
 assert.equal(subjects.length, 4);
 
 const g7 = grades.find(g => g.name === '7°'), g8 = grades.find(g => g.name === '8°');

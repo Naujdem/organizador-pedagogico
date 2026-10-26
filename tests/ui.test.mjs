@@ -176,7 +176,7 @@ assert.match(dq.textContent, /Quitar solo de 7°/); assert.match(dq.textContent,
 dq.querySelector('[data-v="grade"]').click(); await tick(); await tick();
 assert.equal(root.querySelector(sel(fis.id)), null, 'ya no está en 7°');
 const fisAfter = await db.get('subjects', fis.id);
-assert.ok(!fisAfter.deletedAt, 'la materia sigue existiendo'); assert.equal(fisAfter.gradeIds.length, (await db.live('grades')).length - 1, 'queda en todos los demás grados');
+assert.ok(!fisAfter.deletedAt, 'la materia sigue existiendo'); assert.equal(fisAfter.gradeIds.length, 5, 'queda en los demás grados de 6° a 11° (la siembra no la pone en Primaria)');
 await click('[data-lv="0"]'); await click(`[data-act="open-grade"][data-id="${g6.id}"]`);
 assert.ok(root.querySelector(sel(fis.id)), 'sigue en 6°');
 await click('[data-lv="0"]'); await click(`[data-act="open-grade"][data-id="${g7.id}"]`);

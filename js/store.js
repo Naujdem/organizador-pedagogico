@@ -88,23 +88,55 @@ export async function removeLibrary(lib) {
   await db.remove('libraries', lib);
 }
 
+/* ---------- Niveles educativos ----------
+   Primaria (1°–5°) · Básica (6°–9°) · Media (10°–11°). Un grado sin nivel se trata como Básica. */
+export const LEVELS = [{id: 'primaria', label: 'Primaria'}, {id: 'basica', label: 'Básica'}, {id: 'media', label: 'Media'}];
+const LEVEL_RANK = {primaria: 0, basica: 1, media: 2};
+export const levelLabel = level => (LEVELS.find(l => l.id === level) || LEVELS[1]).label;
+export function levelForName(name) {                       // «3°» → primaria, «8°» → basica, «11°» → media; sin número → basica
+  const n = parseInt(name, 10);
+  return isNaN(n) ? 'basica' : n <= 5 ? 'primaria' : n >= 10 ? 'media' : 'basica';
+}
+/* Grados ordenados: Primaria, Básica y Media; dentro de cada nivel, por `order` */
+export const sortGrades = grades => grades.sort((a, b) =>
+  (LEVEL_RANK[a.level] ?? 1) - (LEVEL_RANK[b.level] ?? 1) || (a.order || 0) - (b.order || 0));
+
+const SEED_SUBJECT_ALL_GRADES = 'seed-subject-ciencias-naturales';   // la única materia inicial que también va en Primaria
+
 export async function seedIfEmpty() {
   if (await db.metaGet('seeded')) return;
-  if ((await db.all('grades')).length === 0) {
-    const grades = [
-      ['6°', 'basica'], ['7°', 'basica'], ['8°', 'basica'], ['9°', 'basica'],
-      ['10°', 'media'], ['11°', 'media'],
-    ];
-    for (const [i, [name, level]] of grades.entries()) await db.create('grades', {id: 'seed-grade-' + (i + 6), name, level, order: i + 1});
+  const fresh = (await db.all('grades')).length === 0;
+  if (fresh) {
+    for (let n = 1; n <= 11; n++) await db.create('grades', {id: 'seed-grade-' + n, name: n + '°', level: levelForName(n), order: n});
   }
   if ((await db.all('subjects')).length === 0) {
     const subjects = [
       ['Ciencias Naturales', '#2f9e5f'], ['Biología', '#3b8b3b'],
       ['Química', '#c8772d'], ['Física', '#2d6fc8'],
     ];
-    for (const [name, color] of subjects) await db.create('subjects', {id: 'seed-subject-' + name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-'), name, color});
+    for (const [name, color] of subjects) {
+      const id = 'seed-subject-' + name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-');
+      const only6to11 = id !== SEED_SUBJECT_ALL_GRADES ? {gradeIds: [6, 7, 8, 9, 10, 11].map(n => 'seed-grade-' + n)} : {};
+      await db.create('subjects', {id, name, color, ...only6to11});
+    }
   }
+  if (fresh) await db.metaSet('primariaAdded', true);   // instalación nueva: ya nace con Primaria
   await db.metaSet('seeded', true);
+}
+
+/* Una sola vez en datos existentes: agrega 1°–5° (Primaria) sin mover nada de lo que ya hay.
+   Las materias que se veían en todos los grados pasan a verse solo en los grados que ya existían
+   (Biología, Química o Física no aparecen de pronto en Primaria); Ciencias Naturales sigue en todos. */
+export async function addPrimariaOnce() {
+  if (await db.metaGet('primariaAdded')) return;
+  const live = await db.live('grades');
+  const names = new Set(live.map(g => norm(g.name)));
+  for (let n = 1; n <= 5; n++)
+    if (!names.has(norm(n + '°'))) await db.create('grades', {id: 'seed-grade-' + n, name: n + '°', level: 'primaria', order: n});
+  const ids = live.map(g => g.id);
+  for (const s of await db.live('subjects'))
+    if (!s.gradeIds && s.id !== SEED_SUBJECT_ALL_GRADES) await db.update('subjects', s, {gradeIds: ids});
+  await db.metaSet('primariaAdded', true);
 }
 
 /* Normaliza para buscar sin tildes ni mayúsculas */

@@ -5,7 +5,7 @@
    Todo se puede agregar, editar y eliminar en su nivel.
    ============================================================ */
 import * as db from '../db.js';
-import {RESOURCE_TYPES, TYPE_LABEL, unitsFor, topicsFor, cascadeDeleteUnit, filterResources, norm,
+import {RESOURCE_TYPES, TYPE_LABEL, LEVELS, levelLabel, levelForName, sortGrades, unitsFor, topicsFor, cascadeDeleteUnit, filterResources, norm,
   subjectsForGrade, addSubjectToGrade, removeSubjectFromGrade} from '../store.js';
 import {esc, modal, toast, confirmDlg} from '../ui.js';
 import {openResourceForm} from './recurso-form.js';
@@ -15,8 +15,9 @@ import {openSource} from '../viewer.js';
 function ask(title, fields) {
   return new Promise(res => {
     const dlg = modal(`<form method="dialog"><h2>${esc(title)}</h2>
-      ${fields.map((f, i) => `<label for="a${i}">${esc(f.label)}</label>
-        <input id="a${i}" value="${esc(f.value || '')}" ${f.required ? 'required' : ''} ${f.type ? `type="${f.type}"` : ''}>`).join('')}
+      ${fields.map((f, i) => `<label for="a${i}">${esc(f.label)}</label>` + (f.options
+        ? `<select id="a${i}">${f.options.map(o => `<option value="${esc(o.id)}"${o.id === f.value ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`
+        : `<input id="a${i}" value="${esc(f.value || '')}" ${f.required ? 'required' : ''} ${f.type ? `type="${f.type}"` : ''}>`)).join('')}
       <div class="btns"><button value="no" formnovalidate>Cancelar</button><button class="primary" value="ok">Guardar</button></div></form>`);
     dlg.addEventListener('close', () => res(dlg.returnValue === 'ok' ? fields.map((_, i) => dlg.querySelector('#a' + i).value.trim()) : null));
   });
@@ -69,7 +70,7 @@ async function cascadeDeleteTopic(topic) {
 
 export async function render(root) {
   const [grades, subjects] = await Promise.all([db.live('grades'), db.live('subjects')]);
-  grades.sort((a, b) => a.order - b.order);
+  sortGrades(grades);
   const grade = grades.find(g => g.id === nav.gradeId);
   const subject = grade && subjectsForGrade(subjects, grade.id).find(s => s.id === nav.subjectId);
   const topicRec = subject && nav.topicId ? await db.get('topics', nav.topicId) : null;
@@ -112,16 +113,18 @@ export async function render(root) {
 
     /* ---- Grados ---- */
     if (act === 'add-grade') {
-      const v = await ask('Nuevo grado', [{label: 'Nombre (ej. 7°)', required: true}, {label: 'Nivel: basica o media', value: 'basica'}]);
+      const v = await ask('Nuevo grado', [{label: 'Nombre (ej. 3°, 7°)', required: true},
+        {label: 'Nivel', value: '', options: [{id: '', label: 'Automático (según el número)'}, ...LEVELS]}]);
       if (!v) return;
-      await db.create('grades', {name: v[0], level: /med/i.test(v[1]) ? 'media' : 'basica', order: grades.length + 1});
+      await db.create('grades', {name: v[0], level: v[1] || levelForName(v[0]), order: Math.max(0, ...grades.map(g => g.order || 0)) + 1});
       return again();
     }
     if (act === 'edit-grade') {
       const rec = await db.get('grades', id);
-      const v = await ask('Editar grado', [{label: 'Nombre', value: rec.name, required: true}, {label: 'Nivel: basica o media', value: rec.level || 'basica'}]);
+      const v = await ask('Editar grado', [{label: 'Nombre', value: rec.name, required: true},
+        {label: 'Nivel', value: rec.level || 'basica', options: LEVELS}]);
       if (!v) return;
-      await db.update('grades', rec, {name: v[0], level: /med/i.test(v[1]) ? 'media' : 'basica'});
+      await db.update('grades', rec, {name: v[0], level: v[1] || rec.level || 'basica'});
       return again();
     }
     if (act === 'del-grade') {
@@ -227,9 +230,10 @@ export async function render(root) {
 /* ---------- Nivel 1: grados ---------- */
 async function levelGrades(grades) {
   return `<h3>Grados</h3>
-    <div class="list">${grades.map(g => `<div class="row">
+    <div class="list">${grades.map((g, i) => (i === 0 || (g.level || 'basica') !== (grades[i - 1].level || 'basica')
+        ? `<div class="hint" style="margin-top:${i ? 10 : 0}px"><b>${levelLabel(g.level)}</b></div>` : '') + `<div class="row">
       <button class="body" data-act="open-grade" data-id="${g.id}"><div class="t">${esc(g.name)}</div>
-        <div class="m">${g.level === 'media' ? 'Media' : 'Básica'}</div></button>
+        <div class="m">${levelLabel(g.level)}</div></button>
       ${iconBtn('edit-grade', g.id, 'Editar ' + g.name, '✎')}${iconBtn('del-grade', g.id, 'Eliminar ' + g.name, '🗑')}</div>`).join('')
       || '<div class="empty">Aún no hay grados.</div>'}</div>
     <div class="btns"><button class="primary" data-act="add-grade">＋ Grado</button></div>`;

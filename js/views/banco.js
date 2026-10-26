@@ -7,7 +7,7 @@
    ============================================================ */
 import * as db from '../db.js';
 import {ALL_TYPES, TYPE_LABEL, typesForKind, CLASES_ID, NO_FOLDER, libraryIdOf, librariesList, foldersFor,
-  filterResources, unitsFor, topicsFor, nameMap} from '../store.js';
+  filterResources, unitsFor, topicsFor, nameMap, sortGrades} from '../store.js';
 import {esc, options, modal, toast, confirmDlg} from '../ui.js';
 import {openResourceForm} from './recurso-form.js';
 import {openSource} from '../viewer.js';
@@ -21,7 +21,7 @@ export const fab = {label: 'Nuevo documento', onClick: () => openResourceForm({d
 
 export async function render(root) {
   const [grades, subjects, libs] = await Promise.all([db.live('grades'), db.live('subjects'), librariesList()]);
-  grades.sort((a, b) => a.order - b.order);
+  sortGrades(grades);
   const kindOf = id => libs.find(l => l.id === id)?.kind || (id === CLASES_ID ? 'clases' : 'libre');
   const classMode = () => !F.libraryId || kindOf(F.libraryId) === 'clases';   // ¿mostrar Grado/Materia/Unidad/Tema?
   const hiddenActive = () => ['gradeId', 'subjectId', 'unitId', 'topicId', 'folderId', 'type'].some(k => F[k]);

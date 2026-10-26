@@ -6,7 +6,7 @@
    ============================================================ */
 import * as db from '../db.js';
 import {ulid} from '../ulid.js';
-import {unitsFor, topicsFor, filterResources, nameMap, TYPE_LABEL} from '../store.js';
+import {unitsFor, topicsFor, filterResources, nameMap, TYPE_LABEL, sortGrades} from '../store.js';
 import {esc, options, modal, toast, confirmDlg} from '../ui.js';
 
 let openId = null;   // planeación abierta en el editor
@@ -37,7 +37,7 @@ export async function render(root) {
 
 async function newPlanning() {
   const [subjects, grades] = await Promise.all([db.live('subjects'), db.live('grades')]);
-  grades.sort((a, b) => a.order - b.order);
+  sortGrades(grades);
   if (!subjects.length || !grades.length) return toast('Primero crea materias y grados en Mis clases (desde Inicio).');
   const st = {subjectId: subjects[0].id, gradeId: grades[0].id};
   const dlg = modal(`<form id="np"><h2>Nueva planeación</h2>

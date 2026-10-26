@@ -6,7 +6,7 @@
      fab?          → {label, onClick} acción del botón flotante «＋»
    ============================================================ */
 import * as db from './db.js';
-import {seedIfEmpty, seedLibraries} from './store.js';
+import {seedIfEmpty, seedLibraries, addPrimariaOnce} from './store.js';
 import {$, $$, toast} from './ui.js';
 
 const ROUTES = {
@@ -58,6 +58,7 @@ function netUI() {
 async function boot() {
   await db.open();
   await seedIfEmpty();
+  await addPrimariaOnce();
   await seedLibraries();
   addEventListener('hashchange', go);
   addEventListener('online', netUI); addEventListener('offline', netUI);
