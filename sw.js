@@ -3,7 +3,7 @@
    - Mismo origen: red primero (así siempre ves la versión nueva) y caché si no hay conexión.
    - Google (Drive/Identity) nunca se cachea: pasa directo a la red.
    Al cambiar archivos de la app, sube el número de CACHE. */
-const CACHE = 'organizador-v22';
+const CACHE = 'organizador-v23';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/db.js', './js/ulid.js', './js/store.js', './js/ui.js', './js/viewer.js', './js/xlsx-view.js',
@@ -16,7 +16,7 @@ const SHELL = [
 ];
 
 self.addEventListener('install', e =>
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, {cache: 'reload'})))).then(() => self.skipWaiting())));
 
 self.addEventListener('activate', e =>
   e.waitUntil(caches.keys()
@@ -27,7 +27,7 @@ self.addEventListener('fetch', e => {
   const r = e.request, u = new URL(r.url);
   if (r.method !== 'GET' || u.origin !== location.origin) return;   // Drive, Google, etc.: directo a la red
   e.respondWith(
-    fetch(r)
+    fetch(r, {cache: 'no-cache'})   // pregunta siempre si hay versión nueva (GitHub Pages guarda ~10 min en la caché del navegador)
       .then(res => {
         if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(r, copy)); }
         return res;
