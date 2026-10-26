@@ -48,3 +48,29 @@ export function download(name, blob) {
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
+
+/* ---------- Modo de vista de los documentos: lista o mosaico ----------
+   Una sola preferencia para toda la app (se recuerda en este dispositivo).
+   Las pantallas dibujan su lista con listAttrs() y ponen viewToggle() donde quieran el interruptor;
+   un solo clic delegado cambia todas las listas visibles sin volver a dibujarlas. */
+const VIEW_KEY = 'op_viewMode';
+export function getViewMode() {
+  try { return localStorage.getItem(VIEW_KEY) === 'tiles' ? 'tiles' : 'list'; } catch (_) { return 'list'; }
+}
+export const listAttrs = (extra = '') => `class="list${getViewMode() === 'tiles' ? ' tiles' : ''}${extra ? ' ' + extra : ''}" data-viewlist`;
+export function viewToggle() {
+  const m = getViewMode();
+  const b = (v, icon, label) =>
+    `<button type="button" class="${m === v ? 'on' : ''}" data-viewmode="${v}" aria-pressed="${m === v}" aria-label="${label}" title="${label}">${icon}</button>`;
+  return `<span class="viewtoggle" role="group" aria-label="Forma de ver los documentos">${b('list', '☰', 'Ver como lista')}${b('tiles', '▦', 'Ver como mosaico')}</span>`;
+}
+if (typeof document !== 'undefined') document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-viewmode]');
+  if (!b) return;
+  const m = b.dataset.viewmode === 'tiles' ? 'tiles' : 'list';
+  try { localStorage.setItem(VIEW_KEY, m); } catch (_) {}
+  document.querySelectorAll('[data-viewlist]').forEach(l => l.classList.toggle('tiles', m === 'tiles'));
+  document.querySelectorAll('[data-viewmode]').forEach(x => {
+    x.classList.toggle('on', x.dataset.viewmode === m); x.setAttribute('aria-pressed', String(x.dataset.viewmode === m));
+  });
+});

@@ -7,7 +7,7 @@
 import * as db from '../db.js';
 import {RESOURCE_TYPES, TYPE_LABEL, LEVELS, levelLabel, levelForName, sortGrades, unitsFor, topicsFor, cascadeDeleteUnit, filterResources, norm,
   subjectsForGrade, addSubjectToGrade, removeSubjectFromGrade} from '../store.js';
-import {esc, modal, toast, confirmDlg} from '../ui.js';
+import {esc, modal, toast, confirmDlg, listAttrs, viewToggle} from '../ui.js';
 import {openResourceForm} from './recurso-form.js';
 import {openSource} from '../viewer.js';
 
@@ -288,9 +288,10 @@ async function levelTopic(grade, subject, topic) {
   const groups = RESOURCE_TYPES.map(t => ({t, items: rows.filter(r => (TYPE_LABEL[r.type] ? r.type : 'otro') === t.id)})).filter(g => g.items.length);
   return `<h3>${esc(topic.title)}</h3>
     ${topic.description ? `<p class="hint">${esc(topic.description)}</p>` : ''}
-    <div class="btns">${iconBtn('edit-topic', topic.id, 'Editar tema', '✎ Editar tema')}${iconBtn('del-topic', topic.id, 'Eliminar tema', '🗑 Eliminar tema')}</div>
+    <div class="btns">${iconBtn('edit-topic', topic.id, 'Editar tema', '✎ Editar tema')}${iconBtn('del-topic', topic.id, 'Eliminar tema', '🗑 Eliminar tema')}
+      <span style="margin-left:auto">${viewToggle()}</span></div>
     ${groups.map(({t, items}) => `<h3>${t.icon} ${esc(t.label)} <span class="hint">(${items.length})</span></h3>
-      <div class="list">${items.map(r => `<div class="row"><div class="body"><div class="t">${esc(r.title)}</div>
+      <div ${listAttrs()}>${items.map(r => `<div class="row"><div class="body"><div class="t"><span class="ic">${t.icon}</span> ${esc(r.title)}</div>
         ${[r.typeLabel, ...(r.tags || []), r.notes].filter(Boolean).length ? `<div class="m">${esc([r.typeLabel, ...(r.tags || []), r.notes].filter(Boolean).join(' · '))}</div>` : ''}</div>
         ${r.source ? `<button class="ghost" data-act="open-res" data-id="${r.id}" aria-label="Abrir">↗</button>` : ''}
         ${iconBtn('edit-res', r.id, 'Editar ' + r.title, '✎')}${iconBtn('del-res', r.id, 'Eliminar ' + r.title, '🗑')}</div>`).join('')}</div>`).join('')

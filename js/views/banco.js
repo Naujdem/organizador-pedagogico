@@ -8,7 +8,7 @@
 import * as db from '../db.js';
 import {ALL_TYPES, TYPE_LABEL, typesForKind, CLASES_ID, NO_FOLDER, libraryIdOf, librariesList, foldersFor,
   filterResources, unitsFor, topicsFor, nameMap, sortGrades} from '../store.js';
-import {esc, options, modal, toast, confirmDlg} from '../ui.js';
+import {esc, options, modal, toast, confirmDlg, listAttrs, viewToggle} from '../ui.js';
 import {openResourceForm} from './recurso-form.js';
 import {openSource} from '../viewer.js';
 
@@ -41,8 +41,8 @@ export async function render(root) {
       </div>
       <div class="chips" id="types" role="group" aria-label="Tipo de documento"></div>
     </details>
-    <div class="count"><span id="count"></span><span id="clear"></span></div>
-    <div class="list" id="list"></div>
+    <div class="count"><span><span id="count"></span><span id="clear"></span></span>${viewToggle()}</div>
+    <div ${listAttrs()} id="list"></div>
     <div id="selbar"></div>`;
   const $ = s => root.querySelector(s);
 
@@ -95,7 +95,7 @@ export async function render(root) {
       return `<div class="row${picked.has(r.id) ? ' picked' : ''}" data-id="${r.id}">
         <input class="pick" type="checkbox" data-id="${r.id}" aria-label="Seleccionar ${esc(r.title)}"${picked.has(r.id) ? ' checked' : ''}>
         <button class="body" data-open="${r.id}">
-          <div class="t">${t.icon} ${esc(r.title)}</div>
+          <div class="t"><span class="ic">${t.icon}</span> ${esc(r.title)}</div>
           <div class="m"><span class="badge${r.type === 'pada' ? ' pada' : ''}">${t.label}${r.typeLabel ? ': ' + esc(r.typeLabel) : ''}</span>${esc(meta)}
             ${r.source?.kind === 'drive' ? '☁' : ''}${r.syncState === 'pending' ? '<span class="badge pend">pendiente</span>' : ''}</div>
         </button></div>`;

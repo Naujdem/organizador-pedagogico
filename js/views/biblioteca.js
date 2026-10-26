@@ -6,7 +6,7 @@
    ============================================================ */
 import * as db from '../db.js';
 import {TYPE_LABEL, NO_FOLDER, foldersFor, filterResources, removeFolder, removeLibrary, librariesList, norm} from '../store.js';
-import {esc, modal, toast, confirmDlg} from '../ui.js';
+import {esc, modal, toast, confirmDlg, listAttrs, viewToggle} from '../ui.js';
 import {openResourceForm} from './recurso-form.js';
 import {showDetail} from './banco.js';
 
@@ -98,8 +98,8 @@ export async function render(root) {
     </div>
     ${folder ? `<div class="btns" style="margin-top:0"><button class="ghost" data-act="edit-folder">✎ Renombrar carpeta</button>
       <button class="ghost" data-act="del-folder">🗑 Eliminar carpeta</button></div>` : ''}
-    <div class="count" id="count"></div>
-    <div class="list" id="list"></div>`;
+    <div class="count"><span id="count"></span>${viewToggle()}</div>
+    <div ${listAttrs()} id="list"></div>`;
   const $ = s => root.querySelector(s);
 
   async function drawList() {
@@ -110,7 +110,7 @@ export async function render(root) {
       const t = TYPE_LABEL[r.type] || TYPE_LABEL.otro;
       const where = !folderSel && r.folderId ? esc(byId[r.folderId]?.name || '') : '';
       return `<div class="row"><button class="body" data-open="${r.id}">
-        <div class="t">${t.icon} ${esc(r.title)}</div>
+        <div class="t"><span class="ic">${t.icon}</span> ${esc(r.title)}</div>
         <div class="m"><span class="badge">${t.label}${r.typeLabel ? ': ' + esc(r.typeLabel) : ''}</span>${where}
           ${r.source?.kind === 'drive' ? '☁' : ''}${r.syncState === 'pending' ? '<span class="badge pend">pendiente</span>' : ''}</div>
       </button></div>`;
