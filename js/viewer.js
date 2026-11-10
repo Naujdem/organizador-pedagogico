@@ -95,13 +95,18 @@ function openViewer(title, view, dl, res) {
   let url = '';
   const dlg = modal(`<div class="viewer">
     <div class="viewer-bar"><b class="viewer-title">${esc(title)}</b>
-      <span class="viewer-acts">${res && kind === 'docx' ? '<button type="button" id="v-ed">✏️ Editar copia</button>' : ''}${dl ? `<button type="button" id="v-dl">⬇ ${esc(dl.label || 'Descargar')}</button>` : ''}
+      <span class="viewer-acts">${res && kind === 'docx' ? '<button type="button" id="v-ed">✏️ Editar copia</button>' : ''}${res && kind === 'pdf' ? '<button type="button" id="v-pp">📄 Organizar páginas</button>' : ''}${dl ? `<button type="button" id="v-dl">⬇ ${esc(dl.label || 'Descargar')}</button>` : ''}
       <button type="button" id="v-x" class="primary">Cerrar</button></span></div>
     <div class="viewer-body" id="v-body"><div class="empty">Cargando…</div></div></div>`, {onClose: () => url && URL.revokeObjectURL(url)});
   dlg.classList.add('viewer-dlg');
   const body = dlg.querySelector('#v-body');
   dlg.querySelector('#v-x').onclick = () => dlg.close();
   if (dl) dlg.querySelector('#v-dl').onclick = () => download(dl.name, dl.blob);
+  if (res && kind === 'pdf') dlg.querySelector('#v-pp').onclick = async e => {
+    e.target.disabled = true; e.target.textContent = 'Abriendo…';
+    try { const m = await import('./pdf-pages.js'); dlg.close(); await m.organizePdf(res, view.blob); }
+    catch (err) { console.error(err); toast('No se pudo abrir el PDF: ' + err.message, 5000); e.target.disabled = false; e.target.textContent = '📄 Organizar páginas'; }
+  };
   if (res && kind === 'docx') dlg.querySelector('#v-ed').onclick = async e => {
     e.target.disabled = true; e.target.textContent = 'Preparando…';
     try { await editDocxCopy(res, view.blob); dlg.close(); }
