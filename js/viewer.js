@@ -55,6 +55,21 @@ async function drawDocx(body, blob) {
   await window.docx.renderAsync(blob, body.firstChild, null, {inWrapper: true, breakPages: true, ignoreLastRenderedPageBreak: true});
 }
 
+/* Convierte el Word en HTML editable (imágenes incrustadas) y abre una copia en el editor */
+async function editDocxCopy(r, blob) {
+  await loadScript('jszip.min.js');
+  await loadScript('docx-preview.min.js');
+  const box = document.createElement('div');
+  await window.docx.renderAsync(blob, box, null, {inWrapper: false, breakPages: false, ignoreLastRenderedPageBreak: true,
+    useBase64URL: true, experimental: true});
+  const {newEditorSource, openEditor} = await import('./editor.js');
+  const title = r.title + ' (editable)';
+  const {id, createdAt, updatedAt, deviceId, syncState, ...rest} = r;
+  const copy = await db.create('resources', {...rest, title, source: await newEditorSource(title, box.innerHTML), syncState: 'local-only'});
+  toast('Copia creada: «' + title + '»');
+  openEditor(copy);
+}
+
 async function drawXlsx(body, blob) {
   await loadScript('jszip.min.js');
   const sheets = await readXlsx(await blob.arrayBuffer(), window.JSZip);
@@ -75,18 +90,23 @@ async function drawXlsx(body, blob) {
 }
 
 /* view = {blob, name} lo que se muestra · dl = {blob, name, label} lo que baja «Descargar» (o null) */
-function openViewer(title, view, dl) {
+function openViewer(title, view, dl, res) {
   const {kind, mime} = kindOf(view.blob, view.name);
   let url = '';
   const dlg = modal(`<div class="viewer">
     <div class="viewer-bar"><b class="viewer-title">${esc(title)}</b>
-      <span class="viewer-acts">${dl ? `<button type="button" id="v-dl">⬇ ${esc(dl.label || 'Descargar')}</button>` : ''}
+      <span class="viewer-acts">${res && kind === 'docx' ? '<button type="button" id="v-ed">✏️ Editar copia</button>' : ''}${dl ? `<button type="button" id="v-dl">⬇ ${esc(dl.label || 'Descargar')}</button>` : ''}
       <button type="button" id="v-x" class="primary">Cerrar</button></span></div>
     <div class="viewer-body" id="v-body"><div class="empty">Cargando…</div></div></div>`, {onClose: () => url && URL.revokeObjectURL(url)});
   dlg.classList.add('viewer-dlg');
   const body = dlg.querySelector('#v-body');
   dlg.querySelector('#v-x').onclick = () => dlg.close();
   if (dl) dlg.querySelector('#v-dl').onclick = () => download(dl.name, dl.blob);
+  if (res && kind === 'docx') dlg.querySelector('#v-ed').onclick = async e => {
+    e.target.disabled = true; e.target.textContent = 'Preparando…';
+    try { await editDocxCopy(res, view.blob); dlg.close(); }
+    catch (err) { console.error(err); toast('No se pudo convertir: ' + err.message, 5000); e.target.disabled = false; e.target.textContent = '✏️ Editar copia'; }
+  };
 
   const fail = err => {
     console.error(err);
@@ -124,7 +144,7 @@ export async function openSource(r) {
       main ? {blob: main, name, label: isPresentation(name) ? 'Descargar .pptx (editar)' : 'Descargar original'} : null);
   }
   if (s.previewWebViewLink) return window.open(s.previewWebViewLink, '_blank', 'noopener');   // el PDF solo está en Drive
-  if (main) return openViewer(r.title, {blob: main, name}, {blob: main, name, label: 'Descargar'});
+  if (main) return openViewer(r.title, {blob: main, name}, {blob: main, name, label: 'Descargar'}, r);
   if (s.kind === 'drive' && s.webViewLink) return window.open(s.webViewLink, '_blank', 'noopener');
   toast('El archivo no está disponible en este dispositivo.');
 }
