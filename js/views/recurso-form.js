@@ -12,6 +12,7 @@ import {unitsFor, topicsFor, norm, ensureSubjectInGrades, typesForKind, TYPE_LAB
 import {driveLinked, driveUpload} from '../drive.js';
 import {esc, options, modal, toast} from '../ui.js';
 import {isPresentation} from '../viewer.js';
+import {newEditorSource, openEditor} from '../editor.js';
 
 const NEW = '__new';   // valor de «＋ Otra materia / unidad / carpeta…»
 
@@ -91,6 +92,7 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
     <div>
       <label class="chk"><input type="radio" name="src" value="link"${kind === 'link' ? ' checked' : ''}> Enlace (YouTube, página web)</label>
       <label class="chk"><input type="radio" name="src" value="local"${kind === 'local' || kind === 'drive' ? ' checked' : ''}> Archivo (PDF, Word, imagen…)</label>
+      <label class="chk"><input type="radio" name="src" value="editor"${kind === 'editor' ? ' checked' : ''}> Escribirlo aquí (editor con imágenes, se descarga en PDF)</label>
       <label class="chk"><input type="radio" name="src" value="none"${kind === 'none' ? ' checked' : ''}> Solo notas, sin archivo</label>
     </div>
     <div id="src-link"><input id="f-url" type="url" inputmode="url" value="${esc(r.source?.url || '')}" placeholder="https://…"></div>
@@ -278,7 +280,11 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
       let source = r.source;
       let syncState = r.syncState || 'local-only';
 
+      let abrirEditor = false;
       if (choice === 'none') { source = undefined; }
+      else if (choice === 'editor') {
+        if (r.source?.kind !== 'editor') { source = await newEditorSource(title); abrirEditor = true; }
+      }
       else if (choice === 'link') {
         const url = $('#f-url').value.trim();
         if (url) source = {kind: 'link', url};
@@ -326,6 +332,7 @@ export async function openResourceForm({resource, defaults = {}, onSaved} = {}) 
       dlg.close();
       toast('Documento guardado');
       onSaved && onSaved(saved);
+      if (abrirEditor) openEditor(saved);
     } catch (err) {
       console.error(err);
       toast('No se pudo guardar: ' + err.message, 5000);
