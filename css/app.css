@@ -260,3 +260,15 @@ dialog.modal.viewer-dlg{width:min(980px,98vw);height:92vh;max-height:92vh;paddin
 /* Copias editables de Word: la hoja del editor ya pone márgenes y tamaño */
 .ed-hoja section.docx{padding:0!important;width:auto!important;min-height:0!important;box-shadow:none!important;margin:0!important;background:none!important}
 .ed-hoja .docx img{cursor:pointer}
+
+/* ---------- Organizar páginas de PDF (js/pdf-pages.js) ---------- */
+.pp{display:flex;flex-direction:column;gap:8px;flex:1;min-height:0}
+.pp-grid{flex:1;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;padding:4px;align-content:start}
+.pp-page{margin:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--panel)}
+.pp-page.nueva{border-color:var(--acc);box-shadow:0 0 0 2px var(--soft)}
+.pp-page img{width:100%;height:auto;border:1px solid var(--line);background:#fff}
+.pp-cargando{width:100%;aspect-ratio:1/1.414;display:grid;place-items:center;color:var(--mut);background:var(--hover);border-radius:6px}
+.pp-page figcaption{display:flex;align-items:center;gap:4px}
+.pp-page figcaption button{min-height:34px;padding:4px 8px}
+.pp-elige{cursor:pointer;color:var(--ink);font-size:.9rem;margin:0}
+.pp-elige input{width:auto;min-height:0}
