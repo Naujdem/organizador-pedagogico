@@ -113,6 +113,7 @@ export async function openSource(r) {
   const s = r && r.source;
   if (!s) return;
   if (s.kind === 'link') return window.open(s.url, '_blank', 'noopener');
+  if (s.kind === 'editor') return import('./editor.js').then(m => m.openEditor(r));   // documento escrito en la app
   /* Copia local primero (funciona sin internet); si no hay, Drive */
   const main = s.blobId ? await db.getBlob(s.blobId) : null;
   const name = s.name || r.title;

@@ -219,3 +219,41 @@ dialog.modal.viewer-dlg{width:min(980px,98vw);height:92vh;max-height:92vh;paddin
 .ftile.new{align-items:center;justify-content:center;text-align:center;border:1px dashed var(--line);box-shadow:none;background:transparent;color:var(--mut)}
 .ftile.new:hover{background:var(--hover);color:var(--ink);box-shadow:none}
 .ftile.new .fic{margin:0}
+
+/* ---------- Editor de documentos (js/editor.js) ---------- */
+.editor-dlg{width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;background:var(--bg);color:var(--ink);display:flex;flex-direction:column}
+.editor-dlg::backdrop{background:rgba(15,23,42,.5)}
+.ed-top{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel)}
+.ed-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ed-bar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--panel)}
+.ed-bar button,.ed-bar select{min-height:38px;padding:6px 10px;width:auto}
+.ed-color{display:flex;align-items:center;gap:4px;margin:0;font-weight:700;color:var(--ink);font-size:.9rem;padding:0 6px}
+.ed-color input{width:30px;min-height:30px;padding:0;border:0;background:none}
+.ed-imgsize{display:flex;gap:4px;align-items:center;font-size:.8rem;color:var(--mut)}
+.ed-scroll{flex:1;overflow:auto;padding:20px 12px}
+.ed-hoja{box-sizing:border-box;max-width:21cm;min-height:29.7cm;margin:0 auto;padding:2cm;background:#fff;color:#1e293b;border-radius:6px;box-shadow:0 2px 12px var(--ring),0 0 0 1px var(--line);outline:none;line-height:1.6;font-size:12pt}
+@media (max-width:700px){.ed-hoja{padding:18px;min-height:70vh}}
+.ed-hoja h1{font-size:1.8em;margin:.3em 0;line-height:1.2;text-transform:none;letter-spacing:0;color:inherit}
+.ed-hoja h2{font-size:1.4em;margin:.5em 0 .3em;line-height:1.25;text-transform:none;letter-spacing:0;color:inherit}
+.ed-hoja h3{font-size:1.15em;margin:.5em 0 .3em;text-transform:none;letter-spacing:0;color:inherit;font-weight:700}
+.ed-hoja p{margin:.4em 0}
+.ed-hoja img{max-width:100%;height:auto;display:block;margin:.6em auto;border-radius:4px;cursor:pointer}
+.ed-hoja img.sel{outline:3px solid var(--focus)}
+.ed-hoja table{border-collapse:collapse;width:100%;margin:.6em 0}
+.ed-hoja th,.ed-hoja td{border:1px solid #94a3b8;padding:6px 8px;vertical-align:top;min-width:2em}
+.ed-hoja th{background:#f1f5f9;text-align:left}
+.ed-hoja hr{border:0;border-top:1px solid #94a3b8;margin:1em 0}
+.ed-foot{text-align:center;margin:0;padding:6px}
+
+@media print{
+  @page{size:A4;margin:2cm}
+  body.imprimiendo > *:not(.editor-dlg){display:none!important}
+  body.imprimiendo{background:#fff}
+  body.imprimiendo .editor-dlg{position:static;display:block;height:auto;width:auto;background:#fff}
+  body.imprimiendo .editor-dlg::backdrop{display:none}
+  body.imprimiendo .ed-top,body.imprimiendo .ed-bar,body.imprimiendo .ed-foot{display:none!important}
+  body.imprimiendo .ed-scroll{overflow:visible;padding:0}
+  body.imprimiendo .ed-hoja{max-width:none;min-height:0;padding:0;box-shadow:none;border-radius:0}
+  .ed-hoja img,.ed-hoja tr{break-inside:avoid}
+  .ed-hoja h1,.ed-hoja h2,.ed-hoja h3{break-after:avoid}
+}
