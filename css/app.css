@@ -257,3 +257,6 @@ dialog.modal.viewer-dlg{width:min(980px,98vw);height:92vh;max-height:92vh;paddin
   .ed-hoja img,.ed-hoja tr{break-inside:avoid}
   .ed-hoja h1,.ed-hoja h2,.ed-hoja h3{break-after:avoid}
 }
+/* Copias editables de Word: la hoja del editor ya pone márgenes y tamaño */
+.ed-hoja section.docx{padding:0!important;width:auto!important;min-height:0!important;box-shadow:none!important;margin:0!important;background:none!important}
+.ed-hoja .docx img{cursor:pointer}

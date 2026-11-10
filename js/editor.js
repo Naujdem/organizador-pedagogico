@@ -30,8 +30,7 @@ function prepararImagen(file) {
 }
 
 /* Documento nuevo: crea el archivo HTML vacío y devuelve el source para el recurso */
-export async function newEditorSource(title) {
-  const html = `<h1>${esc(title)}</h1><p><br></p>`;
+export async function newEditorSource(title, html = `<h1>${esc(title)}</h1><p><br></p>`) {
   const blobId = await db.saveBlob(new Blob([html], {type: 'text/html'}));
   return {kind: 'editor', blobId, mimeType: 'text/html', size: html.length, name: title + '.html'};
 }
